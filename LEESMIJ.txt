@@ -1,0 +1,38 @@
+SP Reclamebureau websitepakket
+
+Inhoud:
+- index.html
+- drukwerk.html
+- textiel.html
+- stickers.html
+- belettering.html
+- reclameborden.html
+- webdesign.html
+- algemene-voorwaarden.html
+- privacyverklaring.html
+- assets/ met logo en afbeeldingen
+
+Gebruik:
+1. Pak deze ZIP uit.
+2. Upload alle bestanden én de volledige assets-map naar je hosting.
+3. Open index.html als startpagina.
+
+Belangrijk:
+- Laat de mapnaam assets exact hetzelfde.
+- Verplaats de afbeeldingen niet uit de assets-map, anders werken de beelden niet meer.
+- Ondernemingsnummer/adres in de juridische pagina’s eventueel nog aanvullen.
+
+
+Extra in deze versie:
+- Luxere donkere standaardstijl
+- Sterkere oranje accenten
+- Light / dark switch (keuze wordt onthouden in de browser)
+
+
+Extra in deze versie:
+- Exclusievere high-end agency homepage
+- Nieuwe premium hero bovenaan
+- Moderne bento portfolio-layout
+- Luxere footer met CTA-blok en service-pills
+- Sterkere oranje accenten
+- Light/dark switch behouden
