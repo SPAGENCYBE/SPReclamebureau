@@ -1176,7 +1176,30 @@
       color:rgba(255,255,255,.76)!important;
     }
 
-  </style>
+  
+/* --- LOGO THEME SWITCH --- */
+.brand-logo,
+.footer-logo,
+.logo img,
+.site-logo img,
+.header-logo img,
+.footer-brand-panel img,
+.site-header img[src*="logo-wide"],
+.footer img[src*="logo-wide"]{
+  content:url("assets/logo-wide-dark-transparent.png");
+}
+body[data-theme="dark"] .brand-logo,
+body[data-theme="dark"] .footer-logo,
+body[data-theme="dark"] .logo img,
+body[data-theme="dark"] .site-logo img,
+body[data-theme="dark"] .header-logo img,
+body[data-theme="dark"] .footer-brand-panel img,
+body[data-theme="dark"] .site-header img[src*="logo-wide"],
+body[data-theme="dark"] .footer img[src*="logo-wide"]{
+  content:url("assets/logo-wide-white-transparent.png");
+}
+
+</style>
     <link rel="icon" href="assets/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="assets/favicon-32x32.png">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -1185,7 +1208,7 @@
   <header class="site-header">
     <div class="container nav">
       <a class="brand" href="#home" aria-label="SP Reclamebureau prints & designs">
-        <img src="assets/logo-wide-transparent.png" alt="SP Reclamebureau prints & designs">
+        <img class="brand-logo"  src="assets/logo-wide-transparent.png" alt="SP Reclamebureau prints & designs">
       </a>
       <button class="menu-btn" aria-label="Menu openen" type="button" id="menuBtn"><span></span><span></span><span></span></button>
       <nav class="nav-links" id="navLinks" aria-label="Hoofdnavigatie">
