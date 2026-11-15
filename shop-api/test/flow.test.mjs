@@ -50,19 +50,19 @@ const post = (path, data) => call(path, { method: 'POST', body: JSON.stringify(d
 
 // 1. catalogus
 let r = await (await call('/api/products')).json();
-assert.ok(r.products.find((p) => p.code === 'banner-510'));
+assert.ok(r.products.find((p) => p.code === 'banner'));
 
 // 2. configureren: eerst onvolledig, dan volledig met prijs. Inkoop 20 -> marge max(8, 7.5)=8 -> 28 excl -> 33.88 incl
-r = await (await post('/api/configure', { code: 'banner-510', options: [{ code: 'width', value: 40 }] })).json();
+r = await (await post('/api/configure', { code: 'banner', options: [{ code: 'width', value: 40 }] })).json();
 assert.equal(r.can_order, false); assert.equal(r.price, null);
 const options = [{ code: 'width', value: 40 }, { code: 'height', value: 60 }, { code: 'amount', value: 2 }, { code: 'cut' }];
-r = await (await post('/api/configure', { code: 'banner-510', options })).json();
+r = await (await post('/api/configure', { code: 'banner', options })).json();
 assert.equal(r.can_order, true); assert.deepEqual([r.price.excl, r.price.incl, r.price.production_key], [28, 33.88, '48']);
 assert.equal(r._purchase, undefined, 'inkoopprijs mag niet naar de browser');
 
 // 3. ongeldig product / opties geweigerd
 assert.equal((await post('/api/configure', { code: 'iets-anders', options: [] })).status, 400);
-assert.equal((await post('/api/configure', { code: 'banner-510', options: [{ code: '<script>' }] })).status, 400);
+assert.equal((await post('/api/configure', { code: 'banner', options: [{ code: '<script>' }] })).status, 400);
 
 // 4. upload
 const fd = new FormData();
@@ -75,7 +75,7 @@ assert.equal((await call('/api/upload', { method: 'POST', body: bad })).status, 
 
 // 5. checkout — de browser stuurt een valse prijs mee, die wordt genegeerd
 const checkout = {
-  items: [{ code: 'banner-510', options, files: [{ key: fileKey, name: 'banner.pdf' }], price: 0.01 }],
+  items: [{ code: 'banner', options, files: [{ key: fileKey, name: 'banner.pdf' }], price: 0.01 }],
   customer: { email: 'klant@example.be', phone: '0470000000' },
   address: { first_name: 'Jan', last_name: 'Peeters', street: 'Kerkstraat', house_number: '1', postal_code: '9280', city: 'Lebbeke', country: 'BE' },
   accept_terms: true,
@@ -99,7 +99,7 @@ assert.equal(proboOrders.length, 1);
 const po = proboOrders[0];
 assert.equal(po.order_type, 'test');
 assert.equal(po.id, orderId);
-assert.equal(po.products[0].code, 'banner-510');
+assert.equal(po.products[0].code, 'banner');
 assert.match(po.products[0].files[0].uri, /^https:\/\/api\.test\/api\/files\/.+\?sig=[0-9a-f]{40}$/);
 assert.equal(JSON.parse(kv.get('order:' + orderId)).status, 'sent_to_supplier');
 
@@ -126,7 +126,7 @@ assert.equal(r.orders[0].id, orderId); assert.equal(r.orders[0].purchase_excl, 2
 
 // 12. checkout zonder bestand of voorwaarden geweigerd
 assert.equal((await post('/api/checkout', { ...checkout, accept_terms: false })).status, 400);
-assert.equal((await post('/api/checkout', { ...checkout, items: [{ code: 'banner-510', options, files: [] }] })).status, 400);
+assert.equal((await post('/api/checkout', { ...checkout, items: [{ code: 'banner', options, files: [] }] })).status, 400);
 
 console.log('Alle tests geslaagd ✔  (order', orderId, ')');
 

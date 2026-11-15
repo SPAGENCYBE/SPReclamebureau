@@ -2,46 +2,43 @@
 // `code` = Probo-productcode. Alleen producten in deze lijst kunnen besteld worden
 // (de backend weigert alle andere codes).
 //
-// Tip: met GET /api/admin/probo-products?key=ADMIN_KEY krijg je de volledige
-// Probo-lijst met codes, zodat je hier producten kan toevoegen of aanpassen.
-// De codes hieronder (behalve banner-510) zijn voorbeelden: controleer ze in die lijst.
+// Meer producten toevoegen: GET /api/admin/probo-products?key=ADMIN_KEY&page=1&per_page=100
+// geeft de volledige Probo-lijst. Alle codes hieronder zijn getest op 15-11-2026.
 
 export const CATALOG = [
-  {
-    code: 'banner-510',
-    title: 'Spandoek (banner 510 gr)',
-    category: 'Reclameborden & spandoeken',
-    description: 'Sterk PVC-spandoek voor binnen en buiten. Formaat op maat, met zoom en ringen naar keuze.',
-    image: 'assets/work-borden.png',
-  },
-  {
-    code: 'flyers',
-    title: 'Flyers',
-    category: 'Drukwerk',
-    description: 'Flyers in verschillende formaten en papiersoorten, enkel- of dubbelzijdig.',
-    image: 'assets/work-drukwerk.png',
-  },
-  {
-    code: 'business-cards',
-    title: 'Visitekaartjes',
-    category: 'Drukwerk',
-    description: 'Visitekaartjes met een professionele uitstraling, met afwerking naar keuze.',
-    image: 'assets/work-drukwerk.png',
-  },
-  {
-    code: 'stickers',
-    title: 'Stickers',
-    category: 'Stickers',
-    description: 'Stickers op maat, op rol of per stuk, voor binnen en buiten.',
-    image: 'assets/work-stickers.png',
-  },
-  {
-    code: 'posters',
-    title: 'Affiches',
-    category: 'Drukwerk',
-    description: 'Affiches en posters in groot formaat, scherp en kleurecht.',
-    image: 'assets/work-drukwerk.png',
-  },
+  // Drukwerk
+  { code: 'flyers', title: 'Flyers', category: 'Drukwerk', image: 'assets/work-drukwerk.png',
+    description: 'Flyers van A6 tot A3, op verschillende papiersoorten, enkel- of dubbelzijdig.' },
+  { code: 'business-cards', title: 'Visitekaartjes', category: 'Drukwerk', image: 'assets/work-drukwerk.png',
+    description: 'Visitekaartjes op stevig papier, met of zonder laminaat.' },
+  { code: 'folded-leaflets', title: 'Folders', category: 'Drukwerk', image: 'assets/work-drukwerk.png',
+    description: 'Gevouwen folders in verschillende formaten en vouwwijzen.' },
+  { code: 'posters', title: 'Affiches & posters', category: 'Drukwerk', image: 'assets/work-drukwerk.png',
+    description: 'Posters van A4 tot groot formaat, scherp en kleurecht.' },
+
+  // Reclameborden & spandoeken
+  { code: 'banner', title: 'Spandoek', category: 'Borden & spandoeken', image: 'assets/work-borden.png',
+    description: 'Spandoek op maat voor binnen en buiten, met zoom en ringen naar keuze.' },
+  { code: 'roll-up-banner', title: 'Roll-up banner', category: 'Borden & spandoeken', image: 'assets/work-borden.png',
+    description: 'Roll-up banner met cassette en draagtas, ideaal voor beurzen en events.' },
+  { code: 'advertising-sign', title: 'Reclamebord', category: 'Borden & spandoeken', image: 'assets/work-borden.png',
+    description: 'Reclamebord op maat in verschillende plaatmaterialen.' },
+  { code: 'dibond', title: 'Dibond® bord', category: 'Borden & spandoeken', image: 'assets/work-borden.png',
+    description: 'Strak aluminium sandwichbord, weerbestendig en duurzaam.' },
+  { code: 'pavement-signs', title: 'Stoepbord', category: 'Borden & spandoeken', image: 'assets/work-borden.png',
+    description: 'Stoepbord met eigen affiches, voor voor je zaak.' },
+  { code: 'beachflags', title: 'Beachflag', category: 'Borden & spandoeken', image: 'assets/work-borden.png',
+    description: 'Beachflags in verschillende vormen, inclusief voet naar keuze.' },
+
+  // Stickers & belettering
+  { code: 'vinyl-sticker', title: 'Vinyl sticker op maat', category: 'Stickers & belettering', image: 'assets/work-stickers.png',
+    description: 'Stickers op maat voor binnen en buiten, in elke vorm.' },
+  { code: 'small-stickers', title: 'Kleine stickers', category: 'Stickers & belettering', image: 'assets/work-stickers.png',
+    description: 'Kleine stickers en etiketten, per stuk gesneden.' },
+  { code: 'car-sticker', title: 'Autosticker', category: 'Stickers & belettering', image: 'assets/work-belettering.png',
+    description: 'Autostickers en voertuigbelettering in hoogwaardige folie.' },
+  { code: 'window-decal', title: 'Raamsticker', category: 'Stickers & belettering', image: 'assets/work-belettering.png',
+    description: 'Raamstickers voor etalages en deuren.' },
 ];
 
 export function findCatalogItem(code) {

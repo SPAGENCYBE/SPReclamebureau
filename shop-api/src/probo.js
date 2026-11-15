@@ -54,9 +54,7 @@ export async function configure(env, code, options) {
 
 /**
  * Bestelling plaatsen bij Probo.
- * LET OP: de exacte veldnamen van het adresblok staan niet in de publieke documentatie.
- * Deze functie is de enige plek waar het payload wordt opgebouwd: controleer de velden
- * bij de eerste testbestelling (order_type "test") en pas ze zo nodig hier aan.
+ * Formaat volgens https://apidocs.proboprints.com/examples/order (getest met order_type "test").
  */
 export function buildOrderPayload(order, env) {
   const a = order.address;
@@ -66,6 +64,7 @@ export function buildOrderPayload(order, env) {
     contact_email: env.PROBO_CONTACT_EMAIL || 'info@sp-agency.be',
     order_type: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test',
     callback_urls: [`${env.WORKER_URL}/api/probo/callback?sig=${order.callback_sig}`],
+    error_email_addresses: [env.OWNER_EMAIL || env.PROBO_CONTACT_EMAIL || 'info@sp-agency.be'],
     deliveries: [
       {
         address: {
@@ -81,6 +80,9 @@ export function buildOrderPayload(order, env) {
           email: order.customer.email,
           phone: order.customer.phone || '',
         },
+        // Goedkoopste levertijd + verzending; de verkoopprijs gaat ook uit van de goedkoopste productie-optie.
+        delivery_date_preset: env.PROBO_DELIVERY_PRESET || 'cheapest',
+        shipping_method_preset: env.PROBO_SHIPPING_PRESET || 'cheapest',
       },
     ],
     products: order.lines.map((l, i) => ({
