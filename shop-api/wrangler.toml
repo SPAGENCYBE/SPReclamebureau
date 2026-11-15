@@ -1,0 +1,29 @@
+name = "sp-shop-api"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+SITE_URL = "https://spreclamebureau.be"
+WORKER_URL = "https://sp-shop-api.REPLACE-ME.workers.dev"   # na de eerste deploy invullen
+ALLOWED_ORIGINS = "https://spreclamebureau.be,https://www.spreclamebureau.be"
+PROBO_ORDER_TYPE = "test"        # pas op "production" zetten na een geslaagde testbestelling
+PROBO_CONTACT_EMAIL = "info@sp-agency.be"
+MARGIN_PERCENT = "40"            # jouw marge bovenop de Probo-inkoopprijs
+MIN_MARGIN_EUR = "7.5"           # minimale marge per product
+SHIPPING_EUR = "9.95"            # verzendkost excl. btw
+OWNER_EMAIL = "info@sp-agency.be"
+
+# Geheimen (NIET hier invullen), via:  npx wrangler secret put <NAAM>
+#   PROBO_TOKEN      bearer-code van Probo
+#   MOLLIE_API_KEY   test_... of live_...
+#   SIGNING_SECRET   willekeurige lange tekst
+#   ADMIN_KEY        wachtwoord voor /api/admin/...
+#   RESEND_API_KEY   (optioneel) voor bevestigingsmails
+
+[[kv_namespaces]]
+binding = "ORDERS"
+id = "REPLACE-ME"                # npx wrangler kv namespace create ORDERS
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "sp-shop-files"    # npx wrangler r2 bucket create sp-shop-files

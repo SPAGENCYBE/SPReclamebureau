@@ -1,0 +1,91 @@
+// Probo Reseller API — https://api.proboprints.com
+// Authenticatie: header "Authorization: Basic <bearer-code die Probo je geeft>"
+
+export class ProboError extends Error {
+  constructor(message, status, body) {
+    super(message);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function baseUrl(env) {
+  return (env.PROBO_BASE_URL || 'https://api.proboprints.com').replace(/\/$/, '');
+}
+
+async function call(env, method, path, body) {
+  if (!env.PROBO_TOKEN) throw new ProboError('PROBO_TOKEN ontbreekt', 500);
+  const res = await fetch(baseUrl(env) + path, {
+    method,
+    headers: {
+      Authorization: `Basic ${env.PROBO_TOKEN}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Accept-Language': 'nl',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) throw new ProboError(`Probo ${path} gaf ${res.status}`, res.status, data);
+  return data;
+}
+
+export const listProducts = (env) => call(env, 'GET', '/products');
+
+/** options = [{code, value?}, ...] in volgorde van keuze */
+export async function configure(env, code, options) {
+  const data = await call(env, 'POST', '/products/configure', {
+    products: [{ code, options: options || [] }],
+  });
+  const product = (data.products && data.products[0]) || null;
+  if (!product) throw new ProboError('Probo gaf geen product terug', 502, data);
+  return { product, calculation_id: data.calculation_id ?? null };
+}
+
+/**
+ * Bestelling plaatsen bij Probo.
+ * LET OP: de exacte veldnamen van het adresblok staan niet in de publieke documentatie.
+ * Deze functie is de enige plek waar het payload wordt opgebouwd: controleer de velden
+ * bij de eerste testbestelling (order_type "test") en pas ze zo nodig hier aan.
+ */
+export function buildOrderPayload(order, env) {
+  const a = order.address;
+  return {
+    id: order.id,
+    reference: order.id,
+    contact_email: env.PROBO_CONTACT_EMAIL || 'info@sp-agency.be',
+    order_type: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test',
+    callback_urls: [`${env.WORKER_URL}/api/probo/callback?sig=${order.callback_sig}`],
+    deliveries: [
+      {
+        address: {
+          company_name: a.company || '',
+          first_name: a.first_name,
+          last_name: a.last_name,
+          street: a.street,
+          house_number: a.house_number,
+          addition: a.addition || '',
+          postal_code: a.postal_code,
+          city: a.city,
+          country: a.country || 'BE',
+          email: order.customer.email,
+          phone: order.customer.phone || '',
+        },
+      },
+    ],
+    products: order.lines.map((l, i) => ({
+      id: i + 1,
+      code: l.code,
+      options: l.options,
+      files: l.files.map((f) => ({ uri: f.uri, side: f.side || 'front' })),
+    })),
+  };
+}
+
+export const placeOrder = (env, payload) => call(env, 'POST', '/order', payload);
