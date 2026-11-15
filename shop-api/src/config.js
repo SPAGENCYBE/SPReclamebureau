@@ -24,15 +24,17 @@ export const FEATURED = {
 };
 
 export const HIDDEN = new Set([
-  // bv. 'tiewraps',
+  // Door Probo geblokkeerd voor bestellen op dit account (gecontroleerd 15-11-2026):
+  'acousticpro-panel-sample', 'wallpaint', 'acoustic-budget-panel', 'flowershop', 'stain-wood-oil',
+  'lacquer', 'cutting-ruler', 'quapro-permanent-pvc-free', 'textielframe-standard-formats',
 ]);
 
 // Indeling in categorieën op basis van code + Nederlandse naam. Eerste treffer wint.
 export const CATEGORIES = [
   { name: 'Accessoires', image: 'assets/work-borden.png',
-    re: /holder|houder|hook|haak|haken|tiewrap|clamp|klem|spacer|velcro|klittenband|mounting|ophang|bevestig|base\b|-base|voet|kit\b|-kit|support|steun|hanger|frame-only|tas\b|bag\b|sample|staal|insert|watertank|accessor/i },
+    re: /holder|houder|hook|haak|haken|tiewrap|clamp|klem|spacer|velcro|klittenband|mounting|ophang|bevestig|base\b|-base|baseplate|voet|kit\b|-kit|support|steun|hanger|frame-only|tas\b|bag\b|sample|staal|insert|watertank|accessor|tape|knife|scraper|krabber|ruler|liniaal|sassercut|protector|beschermhoek|lockset|lacquer|lak\b|beits|olie|facade-pole|beach-pole|gevelstok|tendon|pees|seal|zegel|corner|patch/i },
   { name: 'Drukwerk', image: 'assets/work-drukwerk.png',
-    re: /flyer|folder|leaflet|business-card|visitekaart|card|kaart|menu|brochure|poster|affiche|paper|papier|letterhead|briefpapier|envelop|notitie|kalender|calendar/i },
+    re: /placemat|coaster|onderzetter|stamp|plano|print\b|easyprint|neonprint|flyer|folder|leaflet|business-card|visitekaart|card|kaart|menu|brochure|poster|affiche|paper|papier|letterhead|briefpapier|envelop|notitie|kalender|calendar/i },
   { name: 'Stickers & folie', image: 'assets/work-stickers.png',
     re: /sticker|folie|film|decal|ij20|ij40|vinyl|label|etiket|magnet|magneet|\bdot\b|wrap|belettering|lettering/i },
   { name: 'Vlaggen', image: 'assets/work-borden.png',
@@ -44,7 +46,7 @@ export const CATEGORIES = [
   { name: 'Textiel & interieur', image: 'assets/work-textiel.png',
     re: /textile|textiel|canvas|kussen|pillow|cloth|kleed|duvet|dekbed|beanbag|zitzak|parasol|wallpaper|behang|wallcover|deco|stof|fabric|doormat|mat\b|acoust/i },
   { name: 'Beurs & displays', image: 'assets/work-borden.png',
-    re: /exhibition|beurs|counter|balie|display|stand|pixlip|skytube|wall|wand|tent|table|tafel/i },
+    re: /exhibition|beurs|counter|balie|display|stand|pixlip|skytube|wall|wand|tent|table|tafel|frame|lijst|led\b|ledframe|pop-up/i },
 ];
 export const OTHER = { name: 'Overige', image: 'assets/work-drukwerk.png' };
 
