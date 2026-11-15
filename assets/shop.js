@@ -109,7 +109,7 @@
       html += `<div class="price-box"><div><div class="muted">Prijs voor ${esc(r.amount)} stuk(s)</div><div class="big">${eur(r.price.incl)}</div><div class="muted">${eur(r.price.excl)} excl. btw</div></div></div>
         <div class="opt-group"><span class="opt-title">Drukbestand</span>
           <label class="dropzone" id="dropzone"><input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple>
-            <strong>Sleep je bestand hierheen</strong> of klik om te kiezen<br><small class="muted">PDF, JPG of PNG, max. 100 MB${u ? ` · ${esc(u.width)} × ${esc(u.height)} cm${u.bleed && u.bleed[0] ? ` + ${esc(u.bleed[0])} cm afloop` : ''}${u.minimal_dpi ? ` · min. ${esc(u.minimal_dpi)} dpi` : ''}` : ''}</small>
+            <strong>Sleep je bestand hierheen</strong> of klik om te kiezen<br><small class="muted">PDF, JPG of PNG, max. ${state.settings.max_upload_mb || 100} MB${u ? ` · ${esc(u.width)} × ${esc(u.height)} cm${u.bleed && u.bleed[0] ? ` + ${esc(u.bleed[0])} cm afloop` : ''}${u.minimal_dpi ? ` · min. ${esc(u.minimal_dpi)} dpi` : ''}` : ''}</small>
           </label>
           <ul class="file-list" id="fileList"></ul>
           <p class="muted" style="font-size:13px">Geen drukklaar bestand? <a class="accent" href="mailto:info@sp-agency.be?subject=Ontwerp%20voor%20webshopbestelling">Wij ontwerpen het voor je</a>.</p>
@@ -131,7 +131,8 @@
 
   async function uploadFiles(fileList) {
     for (const file of fileList) {
-      if (file.size > 100 * 1024 * 1024) { showError($('#cfgMsg'), `${file.name} is groter dan 100 MB.`); continue; }
+      const maxMb = state.settings.max_upload_mb || 100;
+      if (file.size > maxMb * 1024 * 1024) { showError($('#cfgMsg'), `${file.name} is groter dan ${maxMb} MB. Mail het naar info@sp-agency.be.`); continue; }
       const entry = { name: file.name, side: state.files.length ? 'back' : 'front', uploading: true };
       state.files.push(entry);
       renderFiles();

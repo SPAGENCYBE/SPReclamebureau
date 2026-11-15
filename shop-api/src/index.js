@@ -19,8 +19,8 @@ import * as probo from './probo.js';
 import * as mollie from './mollie.js';
 import { notifyPaid, notifyNewTransfer } from './mail.js';
 import { adminPage } from './admin.js';
+import { putFile, hasFile, getFile, maxUpload } from './storage.js';
 
-const MAX_UPLOAD = 100 * 1024 * 1024;
 const ALLOWED_TYPES = {
   'application/pdf': 'pdf',
   'image/jpeg': 'jpg',
@@ -171,12 +171,10 @@ async function handleUpload(req, env) {
   if (!file || typeof file === 'string') return json({ error: 'Geen bestand ontvangen' }, 400);
   const ext = ALLOWED_TYPES[file.type];
   if (!ext) return json({ error: 'Alleen PDF, JPG of PNG' }, 400);
-  if (file.size > MAX_UPLOAD) return json({ error: 'Bestand is groter dan 100 MB' }, 400);
+  const max = maxUpload(env);
+  if (file.size > max) return json({ error: `Bestand is groter dan ${max / 1024 / 1024} MB` }, 400);
   const key = `${new Date().toISOString().slice(0, 10)}/${rid(12)}.${ext}`;
-  await env.FILES.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type },
-    customMetadata: { name: str(file.name, 200) },
-  });
+  await putFile(env, key, file, { name: str(file.name, 200) });
   return json({ key, name: str(file.name, 200), size: file.size });
 }
 
@@ -185,10 +183,10 @@ async function handleFile(env, key, url) {
   if (url.searchParams.get('sig') !== (await hmac(env, `file:${key}`))) {
     return new Response('Forbidden', { status: 403 });
   }
-  const obj = await env.FILES.get(key);
+  const obj = await getFile(env, key);
   if (!obj) return new Response('Not found', { status: 404 });
   return new Response(obj.body, {
-    headers: { 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream' },
+    headers: { 'Content-Type': obj.contentType || 'application/octet-stream' },
   });
 }
 
@@ -228,7 +226,7 @@ async function handleCheckout(req, env) {
     const cleanFiles = [];
     for (const f of files) {
       const key = str(f && f.key, 80);
-      if (!(await env.FILES.head(key))) return json({ error: 'Een drukbestand is niet (meer) gevonden. Upload opnieuw.' }, 400);
+      if (!(await hasFile(env, key))) return json({ error: 'Een drukbestand is niet (meer) gevonden. Upload opnieuw.' }, 400);
       const sig = await hmac(env, `file:${key}`);
       cleanFiles.push({
         key,
@@ -442,7 +440,7 @@ export default {
     try {
       let res;
       if (p === '/api/health') res = json({ ok: true, probo: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test', payment: paymentMode(env) });
-      else if (p === '/api/products' && req.method === 'GET') res = json({ products: CATALOG, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env) } });
+      else if (p === '/api/products' && req.method === 'GET') res = json({ products: CATALOG, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
       else if (p.startsWith('/api/files/') && req.method === 'GET') return await handleFile(env, p.slice(11), url);

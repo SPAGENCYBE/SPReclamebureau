@@ -5,8 +5,9 @@ import worker from '../src/index.js';
 
 const kv = new Map(), r2 = new Map();
 const ORDERS = {
+  getWithMetadata: async (k) => kv.has(k) ? { value: new Response(kv.get(k).v ?? kv.get(k)).body, metadata: kv.get(k).m ?? null } : { value: null, metadata: null },
   get: async (k) => kv.get(k) ?? null,
-  put: async (k, v) => void kv.set(k, v),
+  put: async (k, v, o) => void kv.set(k, v instanceof ArrayBuffer ? { v, m: o && o.metadata } : v),
   list: async ({ prefix }) => ({ keys: [...kv.keys()].filter((k) => k.startsWith(prefix)).sort().map((name) => ({ name })) }),
 };
 const FILES = {
@@ -15,7 +16,7 @@ const FILES = {
   get: async (k) => (r2.has(k) ? { body: r2.get(k).body, httpMetadata: r2.get(k).httpMetadata } : null),
 };
 const env = {
-  ORDERS, FILES, SITE_URL: 'https://spreclamebureau.be', WORKER_URL: 'https://api.test',
+  ORDERS, FILES: process.env.NO_R2 ? undefined : FILES, SITE_URL: 'https://spreclamebureau.be', WORKER_URL: 'https://api.test',
   ALLOWED_ORIGINS: 'https://spreclamebureau.be', PROBO_TOKEN: 'tok', MOLLIE_API_KEY: 'test_x',
   SIGNING_SECRET: 's3cret', ADMIN_KEY: 'adm', MARGIN_PERCENT: '40', MIN_MARGIN_EUR: '7.5', SHIPPING_EUR: '9.95',
 };
