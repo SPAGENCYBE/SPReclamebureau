@@ -98,8 +98,17 @@
     for (const g of choiceGroups) {
       html += `<div class="opt-group"><span class="opt-title">${esc(g.name || pretty(g.code))}</span><div class="opt-choices">`;
       for (const k of g.children || []) {
+        if (k.available === false) continue;
+        if (INPUT_TYPES.includes(k.type_code)) {
+          // Vrij getal binnen een keuzegroep, bv. "Gewenste oplage"
+          const min = k.min_value && Number(k.min_value) > 0 ? k.min_value : 1;
+          html += `<form class="opt-choice opt-free" data-free="${esc(k.code)}"><span>${esc(k.name || pretty(k.code))}</span>
+            <input type="number" name="v" min="${esc(min)}"${k.max_value ? ` max="${esc(k.max_value)}"` : ''} step="${esc(k.step_size || 'any')}" required placeholder="${esc(k.description || '')}" style="width:110px;min-height:34px;border-radius:8px;border:1px solid var(--s-line);background:var(--s-input);color:var(--s-text);padding:4px 8px">
+            <button type="submit" class="btn" style="min-height:34px;padding:6px 12px">OK</button></form>`;
+          continue;
+        }
         const img = k.images && k.images[0] && k.images[0].url;
-        html += `<button type="button" class="opt-choice" data-opt="${esc(k.code)}" title="${esc(k.description || '')}">${img ? `<img src="${esc(img)}" alt="">` : ''}${esc(k.name || pretty(k.code))}</button>`;
+        html += `<button type="button" class="opt-choice" data-opt="${esc(k.code)}" title="${esc(k.description || '')}">${img ? `<img src="${esc(img)}" alt="">` : ''}${esc(k.name || pretty(k.code))}${k.description && !img ? `<small class="muted" style="font-weight:500">&nbsp;${esc(k.description)}</small>` : ''}</button>`;
       }
       html += '</div></div>';
     }
@@ -232,6 +241,13 @@
     else if (t.id === 'toCheckout') { $('#checkout').hidden = false; $('#checkout').scrollIntoView({ behavior: 'smooth' }); }
   });
   document.addEventListener('submit', (e) => {
+    if (e.target.dataset && e.target.dataset.free) {
+      e.preventDefault();
+      const v = new FormData(e.target).get('v');
+      state.options.push({ code: e.target.dataset.free, value: String(v) });
+      reconfigure();
+      return;
+    }
     if (e.target.id === 'inputForm') {
       e.preventDefault();
       for (const [k, v] of new FormData(e.target)) {

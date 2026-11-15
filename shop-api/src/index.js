@@ -448,9 +448,21 @@ export default {
       else if (p === '/api/mollie/webhook' && req.method === 'POST') return await handleMollieWebhook(req, env);
       else if (p === '/api/probo/callback' && req.method === 'POST') return await handleProboCallback(req, env, url);
       else if (p.startsWith('/api/order/') && req.method === 'GET') res = await handleOrderStatus(env, p.slice(11), url);
-      else if (p === '/api/admin/probo-products') res = isAdmin(env, url) ? json(await probo.listProducts(env)) : json({ error: 'Geen toegang' }, 403);
+      else if (p === '/api/admin/probo-products') res = isAdmin(env, url) ? json(await probo.listProducts(env, url.searchParams)) : json({ error: 'Geen toegang' }, 403);
       else if (p === '/admin' && req.method === 'GET') return isAdmin(env, url) ? new Response(adminPage(), { headers: { 'Content-Type': 'text/html; charset=utf-8' } }) : new Response('Geen toegang', { status: 403 });
       else if (p === '/api/admin/mark-paid' && req.method === 'POST') res = isAdmin(env, url) ? await handleMarkPaid(env, url) : json({ error: 'Geen toegang' }, 403);
+      else if (p === '/api/admin/configure' && req.method === 'POST') {
+        if (!isAdmin(env, url)) res = json({ error: 'Geen toegang' }, 403);
+        else {
+          const b = await req.json().catch(() => ({}));
+          try {
+            const r = await priced(env, String(b.code || ''), cleanOptions(b.options || []) || []);
+            res = json(r);
+          } catch (e) {
+            res = json({ error: e.message, status: e.status, body: e.body }, 200);
+          }
+        }
+      }
       else if (p === '/api/admin/orders') res = isAdmin(env, url) ? await handleAdminOrders(env) : json({ error: 'Geen toegang' }, 403);
       else res = json({ error: 'Niet gevonden' }, 404);
       for (const [k, v] of Object.entries(h)) res.headers.set(k, v);

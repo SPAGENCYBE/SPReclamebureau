@@ -36,7 +36,11 @@ async function call(env, method, path, body) {
   return data;
 }
 
-export const listProducts = (env) => call(env, 'GET', '/products');
+export function listProducts(env, params) {
+  const q = new URLSearchParams();
+  for (const k of ['page', 'per_page', 'search']) if (params && params.get(k)) q.set(k, params.get(k));
+  return call(env, 'GET', '/products' + (q.toString() ? `?${q}` : ''));
+}
 
 /** options = [{code, value?}, ...] in volgorde van keuze */
 export async function configure(env, code, options) {
