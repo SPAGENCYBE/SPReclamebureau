@@ -4,7 +4,7 @@ compatibility_date = "2026-11-01"
 
 [vars]
 SITE_URL = "https://spreclamebureau.be"
-WORKER_URL = "https://sp-shop-api.REPLACE-ME.workers.dev"   # na de eerste deploy invullen
+WORKER_URL = "https://sp-shop-api.spreclamebureau.workers.dev"
 ALLOWED_ORIGINS = "https://spreclamebureau.be,https://www.spreclamebureau.be"
 PROBO_ORDER_TYPE = "test"        # pas op "production" zetten na een geslaagde testbestelling
 PAYMENT_MODE = "test"            # "test" (niets betalen, testorders), "transfer" (overschrijving) of "mollie"
@@ -26,7 +26,7 @@ OWNER_EMAIL = "info@sp-agency.be"
 
 [[kv_namespaces]]
 binding = "ORDERS"
-id = "REPLACE-ME"                # npx wrangler kv namespace create ORDERS
+id = "84a0b1afedcf4f9b86a7f0ccdd2a2b1c"
 
 # Zonder R2 worden drukbestanden (max. 25 MB) tijdelijk in KV bewaard.
 # Na het activeren van R2 (vraagt een betaalkaart) deze 3 regels aanzetten voor bestanden tot 100 MB:
