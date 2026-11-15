@@ -213,7 +213,7 @@
     } catch (e) {
       showError($('#checkoutMsg'), e.message);
       btn.disabled = false;
-      btn.innerHTML = 'Betalen';
+      btn.innerHTML = state.settings.payment === 'mollie' ? 'Betalen' : 'Bestelling plaatsen';
     }
   }
 
@@ -259,6 +259,14 @@
       const r = await api('/api/products');
       state.products = r.products || [];
       if (r.settings) state.settings = r.settings;
+      if (state.settings.payment === 'transfer') {
+        $('#payInfo').textContent = 'Betalen via overschrijving. Je krijgt de betaalgegevens na je bestelling.';
+        $('#payInfo2').textContent = 'Na je bestelling krijg je de betaalgegevens. Zodra je betaling binnen is, gaat je bestelling in productie.';
+        $('#payBtn').textContent = 'Bestelling plaatsen';
+      } else if (state.settings.payment === 'test') {
+        $('#payInfo').textContent = 'TESTMODUS: er wordt niet betaald en niets gedrukt.';
+        $('#payBtn').textContent = 'Testbestelling plaatsen';
+      }
       renderCatalog();
       renderCart();
     } catch (e) {

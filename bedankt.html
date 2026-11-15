@@ -1338,6 +1338,20 @@ body[data-theme="dark"] .footer img[src*="logo-wide"]{
       let o;
       try { const r = await fetch(`${API}/api/order/${encodeURIComponent(id)}?t=${encodeURIComponent(t)}`); o = await r.json(); if (!r.ok) throw 0; }
       catch { lead.textContent = 'We konden je bestelling niet ophalen. Je krijgt een bevestiging per mail.'; return; }
+      if (o.status === 'awaiting_transfer' && o.payment) {
+        try { localStorage.removeItem('sp-cart'); } catch {}
+        lead.textContent = `Bestelnummer: ${o.id}. Schrijf het bedrag over, dan gaat je bestelling in productie.`;
+        const p = o.payment;
+        body.innerHTML = `<div class="cart" style="position:static;margin-bottom:24px"><h3>Betaalgegevens</h3>
+          <div class="cart-row"><span>Bedrag</span><strong>${eur(p.amount)}</strong></div>
+          <div class="cart-row"><span>Rekening</span><strong>${esc(p.iban)}</strong></div>
+          ${p.bic ? `<div class="cart-row"><span>BIC</span><span>${esc(p.bic)}</span></div>` : ''}
+          <div class="cart-row"><span>Op naam van</span><span>${esc(p.name)}</span></div>
+          <div class="cart-row"><span>Mededeling</span><strong>${esc(p.reference)}</strong></div>
+          <p class="muted" style="font-size:13px;margin:12px 0 0">Gebruik zeker de gestructureerde mededeling, zo koppelen we je betaling meteen aan je bestelling.</p></div>
+          <ul class="cart-lines">${o.lines.map((l) => `<li><strong>${esc(l.title)}</strong><span>${eur(l.incl)}</span><small>${esc(l.summary)}</small></li>`).join('')}</ul>`;
+        return;
+      }
       const paid = !['awaiting_payment','payment_canceled','payment_expired','payment_failed'].includes(o.status);
       if (o.status.startsWith('payment_')) {
         document.getElementById('tTitle').innerHTML = 'Betaling <span class="accent">niet gelukt</span>.';

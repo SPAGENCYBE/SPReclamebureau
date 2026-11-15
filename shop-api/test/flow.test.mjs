@@ -128,3 +128,38 @@ assert.equal((await post('/api/checkout', { ...checkout, accept_terms: false }))
 assert.equal((await post('/api/checkout', { ...checkout, items: [{ code: 'banner-510', options, files: [] }] })).status, 400);
 
 console.log('Alle tests geslaagd ✔  (order', orderId, ')');
+
+// ---------- overschrijving ----------
+import { structuredReference } from '../src/index.js';
+for (let i = 0; i < 200; i++) {
+  const ref = structuredReference();
+  assert.match(ref, /^\+\+\+\d{3}\/\d{4}\/\d{5}\+\+\+$/);
+  const d = ref.replace(/\D/g, '');
+  assert.equal(Number(BigInt(d.slice(0, 10)) % 97n) || 97, Number(d.slice(10)));
+}
+env.PAYMENT_MODE = 'transfer'; env.BANK_IBAN = 'BE68 5390 0754 7034';
+proboOrders = [];
+r = await (await post('/api/checkout', checkout)).json();
+assert.match(r.checkout_url, /bedankt\.html\?order=/);
+const tId = r.order_id, tTok = JSON.parse(kv.get('order:' + tId)).token;
+r = await (await call(`/api/order/${tId}?t=${tTok}`)).json();
+assert.equal(r.status, 'awaiting_transfer'); assert.equal(r.payment.iban, 'BE68 5390 0754 7034'); assert.equal(r.payment.amount, 45.92);
+assert.equal(proboOrders.length, 0, 'nog niets naar Probo voor betaling');
+assert.equal((await call(`/api/admin/mark-paid?key=fout&order=${tId}`, { method: 'POST' })).status, 403);
+r = await (await call(`/api/admin/mark-paid?key=adm&order=${tId}`, { method: 'POST' })).json();
+assert.equal(r.status, 'sent_to_supplier'); assert.equal(proboOrders.length, 1);
+assert.equal((await call(`/api/admin/mark-paid?key=adm&order=${tId}`, { method: 'POST' })).status, 400, 'niet twee keer');
+assert.equal(proboOrders.length, 1);
+assert.equal((await call('/admin?key=adm')).status, 200);
+assert.equal((await call('/admin?key=fout')).status, 403);
+
+// ---------- testbetaling ----------
+env.PAYMENT_MODE = 'test'; proboOrders = [];
+r = await (await post('/api/checkout', checkout)).json();
+assert.equal(proboOrders.length, 1); assert.equal(proboOrders[0].order_type, 'test');
+// testbetaling mag nooit samen met echte Probo-orders: valt terug op overschrijving
+env.PROBO_ORDER_TYPE = 'production'; proboOrders = [];
+r = await (await post('/api/checkout', checkout)).json();
+assert.equal(proboOrders.length, 0);
+assert.equal(JSON.parse(kv.get('order:' + r.order_id)).status, 'awaiting_transfer');
+console.log('Overschrijving + testbetaling ✔');

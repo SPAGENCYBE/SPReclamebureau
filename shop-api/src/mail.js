@@ -42,3 +42,22 @@ export async function notifyPaid(env, order) {
     );
   }
 }
+
+export async function notifyNewTransfer(env, order) {
+  if (!env.RESEND_API_KEY) return;
+  const p = order.payment;
+  const amount = order.totals.total_incl.toFixed(2).replace('.', ',');
+  await send(
+    env,
+    order.customer.email,
+    `Je bestelling ${order.id}: betaalgegevens`,
+    `<p>Hallo ${esc(order.address.first_name)},</p><p>Bedankt voor je bestelling <b>${esc(order.id)}</b>. Schrijf <b>€ ${amount}</b> over naar:</p>
+     <p>Rekening: <b>${esc(p.iban)}</b>${p.bic ? ` (BIC ${esc(p.bic)})` : ''}<br>Op naam van: ${esc(p.name)}<br>Mededeling: <b>${esc(p.reference)}</b></p>
+     <p>Zodra je betaling binnen is, gaat je bestelling in productie.</p><p>SP Reclamebureau</p>`,
+  );
+  if (env.OWNER_EMAIL) {
+    await send(env, env.OWNER_EMAIL, `Nieuwe bestelling ${order.id} — wacht op overschrijving (€ ${amount})`,
+      `<p>${esc(order.address.first_name)} ${esc(order.address.last_name)} — ${esc(order.customer.email)}<br>Mededeling: <b>${esc(p.reference)}</b></p>
+       <p>Bevestig de betaling in de beheerpagina (/admin?key=…) om de order naar Probo te sturen.</p>`);
+  }
+}

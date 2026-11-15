@@ -17,7 +17,8 @@ import { CATALOG, findCatalogItem } from './config.js';
 import { pickPurchasePrice, salesPrice, orderTotals, round2 } from './pricing.js';
 import * as probo from './probo.js';
 import * as mollie from './mollie.js';
-import { notifyPaid } from './mail.js';
+import { notifyPaid, notifyNewTransfer } from './mail.js';
+import { adminPage } from './admin.js';
 
 const MAX_UPLOAD = 100 * 1024 * 1024;
 const ALLOWED_TYPES = {
@@ -84,6 +85,26 @@ function cleanOptions(options) {
 
 function str(v, max) {
   return typeof v === 'string' ? v.trim().slice(0, max || 120) : '';
+}
+
+/**
+ * PAYMENT_MODE: "mollie" (online betalen), "transfer" (overschrijving) of "test".
+ * "test" wordt genegeerd zodra Probo op productie staat, zodat er nooit gratis echte orders kunnen vertrekken.
+ */
+function paymentMode(env) {
+  const m = env.PAYMENT_MODE || 'mollie';
+  if (m === 'test' && env.PROBO_ORDER_TYPE === 'production') return 'transfer';
+  return ['mollie', 'transfer', 'test'].includes(m) ? m : 'mollie';
+}
+
+/** Belgische gestructureerde mededeling +++123/4567/89012+++ (10 cijfers + modulo 97). */
+export function structuredReference() {
+  const a = new Uint32Array(2);
+  crypto.getRandomValues(a);
+  const base = String((a[0] % 100000) * 100000 + (a[1] % 100000)).padStart(10, '0');
+  const check = Number(BigInt(base) % 97n) || 97;
+  const s = base + String(check).padStart(2, '0');
+  return `+++${s.slice(0, 3)}/${s.slice(3, 7)}/${s.slice(7)}+++`;
 }
 
 const isAdmin = (env, url) => env.ADMIN_KEY && url.searchParams.get('key') === env.ADMIN_KEY;
@@ -251,11 +272,37 @@ async function handleCheckout(req, env) {
     history: [{ at: d.toISOString(), status: 'awaiting_payment' }],
   };
   order.callback_sig = await hmac(env, `probo:${id}`);
+  const thanksUrl = `${env.SITE_URL}/bedankt.html?order=${id}&t=${order.token}`;
+  const mode = paymentMode(env);
+
+  if (mode === 'transfer') {
+    // Betalen via overschrijving: bestelling wacht tot jij de betaling bevestigt in /admin.
+    order.status = 'awaiting_transfer';
+    order.payment = { method: 'transfer', iban: env.BANK_IBAN || '', bic: env.BANK_BIC || '', name: env.BANK_NAME || 'SP Reclamebureau', reference: structuredReference() };
+    order.history[0].status = order.status;
+    await saveOrder(env, order);
+    await env.ORDERS.put(`recent:${d.getTime()}:${id}`, id, { expirationTtl: 60 * 60 * 24 * 365 });
+    await notifyNewTransfer(env, order).catch(() => {});
+    return json({ order_id: id, checkout_url: thanksUrl });
+  }
+
+  if (mode === 'test') {
+    // Testbetaling: meteen "betaald", alleen toegelaten zolang Probo in testmodus staat.
+    order.payment = { method: 'test' };
+    order.paid_at = new Date().toISOString();
+    order.status = 'paid';
+    order.history.push({ at: order.paid_at, status: 'paid (test)' });
+    await saveOrder(env, order);
+    await env.ORDERS.put(`recent:${d.getTime()}:${id}`, id, { expirationTtl: 60 * 60 * 24 * 365 });
+    await sendToProbo(env, order);
+    await saveOrder(env, order);
+    return json({ order_id: id, checkout_url: thanksUrl });
+  }
 
   const payment = await mollie.createPayment(env, {
     amount: totals.total_incl,
     description: `SP Reclamebureau bestelling ${id}`,
-    redirectUrl: `${env.SITE_URL}/bedankt.html?order=${id}&t=${order.token}`,
+    redirectUrl: thanksUrl,
     webhookUrl: `${env.WORKER_URL}/api/mollie/webhook`,
     metadata: { orderId: id },
     email: customer.email,
@@ -332,6 +379,7 @@ async function handleOrderStatus(env, id, url) {
   return json({
     id: order.id,
     status: order.status,
+    payment: order.status === 'awaiting_transfer' ? { ...order.payment, amount: order.totals.total_incl } : undefined,
     supplier_status: order.supplier_status || null,
     tracking_url: order.tracking_url || null,
     totals: order.totals,
@@ -352,6 +400,9 @@ async function handleAdminOrders(env) {
         status: o.status,
         supplier_status: o.supplier_status || null,
         customer: o.customer.email,
+        name: `${o.address.first_name} ${o.address.last_name}${o.address.company ? ' (' + o.address.company + ')' : ''}`,
+        reference: o.payment && o.payment.reference ? o.payment.reference : null,
+        lines: o.lines.map((l) => `${l.title}: ${l.summary}`),
         total_incl: o.totals.total_incl,
         purchase_excl: round2(o.lines.reduce((s, l) => s + (l.purchase_excl || 0), 0)),
         probo_error: o.probo_error || null,
@@ -359,6 +410,25 @@ async function handleAdminOrders(env) {
     }
   }
   return json({ orders });
+}
+
+async function handleMarkPaid(env, url) {
+  const order = await getOrder(env, url.searchParams.get('order') || '');
+  if (!order) return json({ error: 'Bestelling niet gevonden' }, 404);
+  if (order.status !== 'awaiting_transfer' && order.status !== 'supplier_error') {
+    return json({ error: `Bestelling heeft status ${order.status}` }, 400);
+  }
+  if (!order.paid_at) {
+    order.paid_at = new Date().toISOString();
+    order.history.push({ at: order.paid_at, status: 'paid (overschrijving bevestigd)' });
+  }
+  order.status = 'paid';
+  delete order.probo_error;
+  await saveOrder(env, order);
+  await sendToProbo(env, order);
+  await saveOrder(env, order);
+  await notifyPaid(env, order).catch(() => {});
+  return json({ ok: true, status: order.status, probo_error: order.probo_error || null });
 }
 
 // ---------- router ----------
@@ -371,8 +441,8 @@ export default {
     const p = url.pathname;
     try {
       let res;
-      if (p === '/api/health') res = json({ ok: true, mode: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test' });
-      else if (p === '/api/products' && req.method === 'GET') res = json({ products: CATALOG, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21 } });
+      if (p === '/api/health') res = json({ ok: true, probo: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test', payment: paymentMode(env) });
+      else if (p === '/api/products' && req.method === 'GET') res = json({ products: CATALOG, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env) } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
       else if (p.startsWith('/api/files/') && req.method === 'GET') return await handleFile(env, p.slice(11), url);
@@ -381,6 +451,8 @@ export default {
       else if (p === '/api/probo/callback' && req.method === 'POST') return await handleProboCallback(req, env, url);
       else if (p.startsWith('/api/order/') && req.method === 'GET') res = await handleOrderStatus(env, p.slice(11), url);
       else if (p === '/api/admin/probo-products') res = isAdmin(env, url) ? json(await probo.listProducts(env)) : json({ error: 'Geen toegang' }, 403);
+      else if (p === '/admin' && req.method === 'GET') return isAdmin(env, url) ? new Response(adminPage(), { headers: { 'Content-Type': 'text/html; charset=utf-8' } }) : new Response('Geen toegang', { status: 403 });
+      else if (p === '/api/admin/mark-paid' && req.method === 'POST') res = isAdmin(env, url) ? await handleMarkPaid(env, url) : json({ error: 'Geen toegang' }, 403);
       else if (p === '/api/admin/orders') res = isAdmin(env, url) ? await handleAdminOrders(env) : json({ error: 'Geen toegang' }, 403);
       else res = json({ error: 'Niet gevonden' }, 404);
       for (const [k, v] of Object.entries(h)) res.headers.set(k, v);
