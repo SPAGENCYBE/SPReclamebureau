@@ -21,7 +21,7 @@ const env = {
   SIGNING_SECRET: 's3cret', ADMIN_KEY: 'adm', MARGIN_PERCENT: '40', MIN_MARGIN_EUR: '7.5', SHIPPING_EUR: '9.95',
 };
 
-let proboOrders = [], molliePayment = null;
+let proboOrders = [], molliePayment = null, catalogCalls = 0;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), body = init.body ? JSON.parse(init.body) : null;
   if (u === 'https://api.proboprints.com/products/configure') {
@@ -35,6 +35,16 @@ globalThis.fetch = async (url, init = {}) => {
       uploaders: done ? [{ type: 'single', amount: 2, width: 40, height: 60, minimal_dpi: 72, bleed_top: 1, bleed_right: 1, bleed_bottom: 1, bleed_left: 1 }] : [],
       prices_total: done ? { '18': { purchase_price: 0 }, '24': { purchase_price: 30.0 }, '48': { purchase_price: 20.0 } } : undefined,
     }], calculation_id: 1 });
+  }
+  if (u.startsWith('https://api.proboprints.com/products?')) {
+    const page = Number(new URL(u).searchParams.get('page'));
+    const mk = (code, nl, group = 'Composed product', active = true) => ({ code, active, article_group_name: group, translations: { nl: { title: nl, description: nl } } });
+    const pages = [
+      [mk('banner', 'Spandoek'), mk('flyers', 'Flyers'), mk('tiewraps', 'Tiewraps'), mk('pole-flag', 'Mastvlag')],
+      [mk('vinyl-sticker', 'Vinyl sticker'), mk('old-thing', 'Oud', 'Composed product', false), mk('pvc-sheet', 'PVC', 'Material'), mk('dibond', 'Dibond®')],
+    ];
+    catalogCalls++;
+    return Response.json({ meta: { page, pages: 2, items: 8, per_page: 100 }, data: pages[page - 1] });
   }
   if (u === 'https://api.proboprints.com/order') { proboOrders.push(body); return Response.json({ status: 'queued', order: { id: body.id } }); }
   if (u === 'https://api.mollie.com/v2/payments') {
@@ -50,7 +60,15 @@ const post = (path, data) => call(path, { method: 'POST', body: JSON.stringify(d
 
 // 1. catalogus
 let r = await (await call('/api/products')).json();
-assert.ok(r.products.find((p) => p.code === 'banner'));
+const codes = r.products.map((p) => p.code);
+assert.deepEqual(codes.slice(0, 4), ['flyers', 'banner', 'dibond', 'vinyl-sticker'], 'uitgelichte producten eerst, in vaste volgorde');
+assert.ok(codes.includes('tiewraps') && codes.includes('pole-flag'));
+assert.ok(!codes.includes('old-thing') && !codes.includes('pvc-sheet'), 'inactief en materialen niet tonen');
+const cat = Object.fromEntries(r.products.map((p) => [p.code, p.category]));
+assert.equal(cat.tiewraps, 'Accessoires'); assert.equal(cat['pole-flag'], 'Vlaggen'); assert.equal(cat.flyers, 'Drukwerk');
+assert.equal(cat['vinyl-sticker'], 'Stickers & folie'); assert.equal(cat.dibond, 'Borden & platen'); assert.equal(cat.banner, 'Spandoeken & banners');
+await call('/api/products');
+assert.equal(catalogCalls, 2, 'catalogus wordt bewaard, niet telkens opnieuw opgehaald');
 
 // 2. configureren: eerst onvolledig, dan volledig met prijs. Inkoop 20 -> marge max(8, 7.5)=8 -> 28 excl -> 33.88 incl
 r = await (await post('/api/configure', { code: 'banner', options: [{ code: 'width', value: 40 }] })).json();

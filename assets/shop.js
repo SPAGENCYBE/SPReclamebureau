@@ -12,7 +12,8 @@
     set(v) { try { localStorage.setItem('sp-cart', JSON.stringify(v)); } catch { /* privémodus */ } },
   };
 
-  const state = { products: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', product: null, options: [], result: null, files: [], cart: store.get() };
+  const PAGE = 24;
+  const state = { products: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', q: '', shown: PAGE, product: null, options: [], result: null, files: [], cart: store.get() };
 
   async function api(path, opts) {
     const res = await fetch(API + path, opts);
@@ -26,14 +27,19 @@
 
   // ---------- catalogus ----------
   function renderCatalog() {
-    const cats = ['Alles', ...new Set(state.products.map((p) => p.category))];
-    $('#catFilters').innerHTML = cats.map((c) => `<button type="button" class="${c === state.cat ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
-    const list = state.products.filter((p) => state.cat === 'Alles' || p.category === state.cat);
-    $('#productGrid').innerHTML = list.map((p) => `
+    const counts = {};
+    for (const p of state.products) counts[p.category] = (counts[p.category] || 0) + 1;
+    const cats = ['Alles', ...Object.keys(counts).sort((a, b) => (a === 'Overige') - (b === 'Overige') || (a === 'Accessoires') - (b === 'Accessoires') || a.localeCompare(b, 'nl'))];
+    $('#catFilters').innerHTML = cats.map((c) => `<button type="button" class="${c === state.cat ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)} <span class="muted" style="font-weight:600">${c === 'Alles' ? state.products.length : counts[c]}</span></button>`).join('');
+    const q = state.q.toLowerCase();
+    const list = state.products.filter((p) => (state.cat === 'Alles' || p.category === state.cat) && (!q || `${p.title} ${p.description} ${p.category}`.toLowerCase().includes(q)));
+    const visible = list.slice(0, state.shown);
+    $('#productGrid').innerHTML = visible.length ? visible.map((p) => `
       <button type="button" class="product-card ${state.product?.code === p.code ? 'active' : ''}" data-code="${esc(p.code)}">
         <img src="${esc(p.image)}" alt="" loading="lazy">
-        <div class="pc-body"><div class="pc-cat">${esc(p.category)}</div><h3>${esc(p.title)}</h3><p class="muted">${esc(p.description)}</p></div>
-      </button>`).join('');
+        <div class="pc-body"><div class="pc-cat">${esc(p.category)}</div><h3>${esc(p.title)}</h3>${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}</div>
+      </button>`).join('') : '<p class="muted">Geen producten gevonden. Probeer een ander woord of <a class="accent" href="mailto:info@sp-agency.be?subject=Productvraag">vraag het ons</a>.</p>';
+    $('#moreWrap').innerHTML = list.length > visible.length ? `<button type="button" class="btn outline" id="showMore">Toon meer (${list.length - visible.length})</button>` : '';
   }
 
   // ---------- configurator ----------
@@ -231,7 +237,8 @@
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button,[data-cat]');
     if (!t) return;
-    if (t.dataset.cat) { state.cat = t.dataset.cat; renderCatalog(); }
+    if (t.dataset.cat) { state.cat = t.dataset.cat; state.shown = PAGE; renderCatalog(); }
+    else if (t.id === 'showMore') { state.shown += PAGE * 2; renderCatalog(); }
     else if (t.dataset.code) selectProduct(t.dataset.code);
     else if (t.dataset.opt) { state.options.push({ code: t.dataset.opt }); reconfigure(); }
     else if (t.dataset.undo !== undefined) { state.options = state.options.slice(0, Number(t.dataset.undo)); state.files = []; reconfigure(); }
@@ -256,6 +263,9 @@
       }
       reconfigure();
     } else if (e.target.id === 'checkoutForm') submitCheckout(e);
+  });
+  document.addEventListener('input', (e) => {
+    if (e.target.id === 'shopSearch') { state.q = e.target.value.trim(); state.shown = PAGE; renderCatalog(); }
   });
   document.addEventListener('change', (e) => {
     if (e.target.id === 'fileInput') uploadFiles([...e.target.files]);

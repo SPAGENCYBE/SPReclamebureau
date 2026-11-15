@@ -13,7 +13,7 @@
 //   GET  /api/admin/probo-products?key=   volledige Probo-productlijst (beheer)
 //   GET  /api/admin/orders?key=           laatste bestellingen (beheer)
 
-import { CATALOG, findCatalogItem } from './config.js';
+import { getCatalog, buildCatalog, findCatalogItem } from './catalog.js';
 import { pickPurchasePrice, salesPrice, orderTotals, round2 } from './pricing.js';
 import * as probo from './probo.js';
 import * as mollie from './mollie.js';
@@ -156,7 +156,7 @@ async function priced(env, code, options) {
 
 async function handleConfigure(req, env) {
   const body = await req.json().catch(() => null);
-  const item = body && findCatalogItem(body.code);
+  const item = body && await findCatalogItem(env, body.code);
   if (!item) return json({ error: 'Onbekend product' }, 400);
   const options = cleanOptions(body.options || []);
   if (!options) return json({ error: 'Ongeldige opties' }, 400);
@@ -218,7 +218,7 @@ async function handleCheckout(req, env) {
   // Elke regel opnieuw bij Probo prijzen: de browser bepaalt nooit de prijs.
   const lines = [];
   for (const it of body.items) {
-    const item = findCatalogItem(it && it.code);
+    const item = await findCatalogItem(env, it && it.code);
     const options = cleanOptions(it && it.options);
     if (!item || !options) return json({ error: 'Ongeldig product in winkelmand' }, 400);
     const files = Array.isArray(it.files) ? it.files.slice(0, 4) : [];
@@ -440,7 +440,7 @@ export default {
     try {
       let res;
       if (p === '/api/health') res = json({ ok: true, probo: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test', payment: paymentMode(env) });
-      else if (p === '/api/products' && req.method === 'GET') res = json({ products: CATALOG, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
+      else if (p === '/api/products' && req.method === 'GET') res = json({ products: (await getCatalog(env)).products, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
       else if (p.startsWith('/api/files/') && req.method === 'GET') return await handleFile(env, p.slice(11), url);
@@ -463,6 +463,7 @@ export default {
           }
         }
       }
+      else if (p === '/api/admin/refresh-catalog') res = isAdmin(env, url) ? json({ ok: true, count: (await buildCatalog(env)).products.length }) : json({ error: 'Geen toegang' }, 403);
       else if (p === '/api/admin/orders') res = isAdmin(env, url) ? await handleAdminOrders(env) : json({ error: 'Geen toegang' }, 403);
       else res = json({ error: 'Niet gevonden' }, 404);
       for (const [k, v] of Object.entries(h)) res.headers.set(k, v);
