@@ -1,0 +1,86 @@
+/* SP Reclamebureau — designverbeteringen (leesbaarheid, portfolio, gsm, webshopblok).
+   Staat na de bestaande stijlen, zodat deze regels voorgaan. */
+
+/* 1. Leesbaarheid: grotere, lichtere tekst in kaarten en lopende tekst */
+.service-card h3 { font-size: 18px !important; line-height: 1.2 !important; }
+.service-card p { font-size: 15px !important; line-height: 1.55 !important; }
+.why-item h3 { font-size: 16px !important; line-height: 1.25 !important; }
+.why-item p { font-size: 14.5px !important; line-height: 1.55 !important; }
+.portfolio-intro p, .local-text p { font-size: 16px !important; line-height: 1.65 !important; }
+.trust-item span { font-size: 13px !important; }
+.hero-specialties span { font-size: 13px; }
+
+body[data-theme="dark"] .service-card p,
+body[data-theme="dark"] .why-item p,
+body[data-theme="dark"] .local-text p { color: #c9d2de !important; }
+body[data-theme="dark"] .lead { color: #c9d2de !important; }
+body[data-theme="dark"] .portfolio-intro p { color: rgba(255, 255, 255, .86) !important; }
+
+body[data-theme="light"] .service-card p,
+body[data-theme="light"] .why-item p { color: #4a5563 !important; }
+body[data-theme="light"] .local-text p { color: #2f3a48 !important; }
+
+/* 3. Portfoliokaarten: tekst niet meer over de tekst in de foto */
+.bento-card::after {
+  background:
+    linear-gradient(0deg, rgba(5, 8, 12, .96) 0%, rgba(5, 8, 12, .90) 30%, rgba(5, 8, 12, .55) 55%, rgba(5, 8, 12, .08) 100%),
+    radial-gradient(circle at 18% 85%, rgba(244, 91, 0, .22), transparent 36%) !important;
+  opacity: 1 !important;
+}
+.bento-content h3, .bento-content p { text-shadow: 0 2px 14px rgba(0, 0, 0, .65); }
+.bento-content small { font-size: 12px !important; }
+.bento-content p { font-size: 14px !important; line-height: 1.5; color: rgba(255, 255, 255, .88) !important; }
+
+/* 4. Webshopblok op de homepage */
+.shop-promo { padding: 64px 0; }
+.shop-promo-card {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: 1.15fr .85fr; gap: 36px; align-items: center;
+  padding: 44px; border-radius: 26px;
+  background: linear-gradient(135deg, #111922 0%, #17222d 60%, #1b2733 100%);
+  border: 1px solid rgba(244, 91, 0, .28);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .25);
+  color: #fff;
+}
+.shop-promo-card::before {
+  content: ""; position: absolute; right: -120px; top: -120px; width: 360px; height: 360px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(244, 91, 0, .30), transparent 65%); pointer-events: none;
+}
+.shop-promo .eyebrow { color: #ff9b4f !important; }
+.shop-promo h2 { margin: 6px 0 14px; font-size: clamp(30px, 4vw, 46px); line-height: 1.05; letter-spacing: -.045em; color: #fff !important; }
+.shop-promo p { margin: 0 0 22px; color: rgba(255, 255, 255, .82) !important; font-size: 16px; line-height: 1.6; max-width: 560px; }
+.shop-promo-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.shop-promo .btn.outline { color: #fff; border-color: rgba(255, 255, 255, .35); background: transparent; }
+.shop-promo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; position: relative; z-index: 1; }
+.shop-promo-list li {
+  display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; border-radius: 16px;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .09);
+  font-weight: 700; font-size: 15px; color: #fff;
+}
+.shop-promo-list li span { display: block; font-weight: 500; font-size: 14px; color: rgba(255, 255, 255, .72); margin-top: 2px; }
+.shop-promo-list b {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--orange, #f45b00); color: #fff; font-size: 14px;
+}
+.hero-shoplink { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-weight: 800; font-size: 14px; color: var(--orange, #f45b00); }
+.hero-shoplink:hover { text-decoration: underline; }
+.nav-links a[href="webshop.html"] { color: var(--orange, #f45b00) !important; }
+
+@media (max-width: 900px) {
+  .shop-promo-card { grid-template-columns: 1fr; padding: 28px; }
+}
+
+/* 5. Gsm: ontwerp/productie/afwerking compact naast elkaar */
+@media (max-width: 640px) {
+  .hero-trust { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; margin-top: 22px !important; }
+  .trust-item { padding: 12px 10px !important; border-radius: 14px !important; text-align: center; }
+  .trust-item strong { font-size: 20px !important; margin-bottom: 4px !important; }
+  .trust-item span { font-size: 11px !important; letter-spacing: .04em !important; }
+  .service-card p { font-size: 14.5px !important; }
+}
+
+/* Brede kaart (Belettering): extra donker aan de tekstkant */
+.bento-card.wide::after {
+  background:
+    linear-gradient(90deg, rgba(5, 8, 12, .94) 0%, rgba(5, 8, 12, .80) 45%, rgba(5, 8, 12, .25) 80%, rgba(5, 8, 12, .10) 100%),
+    linear-gradient(0deg, rgba(5, 8, 12, .85) 0%, rgba(5, 8, 12, .2) 60%) !important;
+}
