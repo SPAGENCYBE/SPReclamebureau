@@ -4,6 +4,7 @@
   const $ = (s, el = document) => el.querySelector(s);
   const eur = (n) => '€ ' + Number(n || 0).toFixed(2).replace('.', ',');
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const nl = (n) => (n === null || n === undefined || n === '' ? '' : Number(n).toLocaleString('nl-BE'));
   const pretty = (code) => String(code || '').replace(/[-_]/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
   const INPUT_TYPES = ['width', 'height', 'length', 'amount', 'number', 'input', 'text', 'pages'];
 
@@ -193,7 +194,7 @@
             ? '<strong>Dubbelzijdig:</strong> upload een <b>voorkant én achterkant</b> (2 bestanden), of <b>één PDF met 2 pagina\'s</b> (pagina 1 = voorkant, pagina 2 = achterkant).'
             : '<strong>Enkelzijdig:</strong> upload <b>één bestand</b> met je ontwerp.'}</div>
           <label class="dropzone" id="dropzone"><input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple>
-            <strong>Sleep je bestand hierheen</strong> of klik om te kiezen<br><small class="muted">PDF, JPG of PNG, max. ${state.settings.max_upload_mb || 100} MB${u ? ` · ${esc(u.width)} × ${esc(u.height)} cm${u.bleed && u.bleed[0] ? ` + ${esc(u.bleed[0])} cm afloop` : ''}${u.minimal_dpi ? ` · min. ${esc(u.minimal_dpi)} dpi` : ''}` : ''}</small>
+            <strong>Sleep je bestand hierheen</strong> of klik om te kiezen<br><small class="muted">PDF, JPG of PNG, max. ${state.settings.max_upload_mb || 100} MB${u ? ` · ${nl(u.width)} × ${nl(u.height)} cm${u.bleed && u.bleed[0] ? ` + ${nl(u.bleed[0])} cm afloop` : ''}${u.minimal_dpi ? ` · min. ${esc(u.minimal_dpi)} dpi` : ''}` : ''}</small>
           </label>
           <ul class="file-list" id="fileList"></ul></details>
           <p class="muted" style="font-size:13px">Geen drukklaar bestand? <a class="accent" href="mailto:info@sp-agency.be?subject=Ontwerp%20voor%20webshopbestelling">Wij ontwerpen het voor je</a>.</p>
@@ -209,7 +210,7 @@
   // ---------- Probo-uploader (bestandscontrole zoals bij Probo) ----------
   function uploaderHtml(u) {
     const up = state.uploader;
-    const fmt = u ? `${esc(u.width)} × ${esc(u.height)} cm${u.type === 'double' ? ', voor- en achterkant' : ''}` : '';
+    const fmt = u ? `${nl(u.width)} × ${nl(u.height)} cm${u.type === 'double' ? ', voor- en achterkant' : ''}` : '';
     if (up && up.approved) {
       return `<div class="up-ok">✓ <strong>Bestanden goedgekeurd</strong><span class="muted">Je ontwerp is gecontroleerd en klaar voor productie.</span></div>
         <button type="button" class="btn outline" data-uploader="open">Bestanden aanpassen</button>`;
