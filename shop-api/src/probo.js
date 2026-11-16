@@ -89,10 +89,10 @@ export function buildOrderPayload(order, env) {
       },
     ],
     products: order.lines.map((l, i) => ({
-      id: i + 1,
+      ...(l.uploader ? {} : { id: i + 1 }),
       code: l.code,
       options: l.options,
-      ...(l.uploader ? { uploaders: [{ id: l.uploader.id, external_id: l.uploader.external_id }] } : { files: proboFiles(l) }),
+      ...(l.uploader ? { uploaders: [{ id: Number(l.uploader.id), external_id: Number(l.uploader.external_id) }] } : { files: proboFiles(l) }),
     })),
   };
 }
