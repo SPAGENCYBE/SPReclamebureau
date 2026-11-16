@@ -16,6 +16,13 @@ MARGIN_PERCENT = "40"            # jouw marge bovenop de Probo-inkoopprijs
 MIN_MARGIN_EUR = "7.5"           # minimale marge per product
 SHIPPING_EUR = "9.95"            # verzendkost excl. btw
 OWNER_EMAIL = "info@sp-agency.be"
+MAIL_FROM = "SP Reclamebureau <shop@spreclamebureau.be>"
+# Gegevens op facturen. Zolang SELLER_VAT leeg is, maakt de webshop bestelbevestigingen i.p.v. facturen.
+SELLER_NAME = "SP Reclamebureau"
+SELLER_ADDRESS = ""
+SELLER_VAT = ""
+SELLER_IBAN = ""
+SELLER_EMAIL = "info@sp-agency.be"
 
 # Geheimen (NIET hier invullen), via:  npx wrangler secret put <NAAM>
 #   PROBO_TOKEN      bearer-code van Probo

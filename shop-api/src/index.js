@@ -20,6 +20,8 @@ import * as mollie from './mollie.js';
 import { notifyPaid, notifyNewTransfer } from './mail.js';
 import { adminPage } from './admin.js';
 import { checkFiles } from './files.js';
+import * as accounts from './accounts.js';
+import { invoiceHtml } from './invoice.js';
 import { fillImages, serveThumb, thumbIndex } from './images.js';
 import { putFile, hasFile, getFile, maxUpload } from './storage.js';
 
@@ -38,8 +40,8 @@ function cors(env, req) {
   const origin = req.headers.get('Origin') || '';
   return {
     'Access-Control-Allow-Origin': allowed.includes(origin) ? origin : allowed[0],
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     Vary: 'Origin',
   };
 }
@@ -130,6 +132,14 @@ async function getOrder(env, id) {
 
 async function saveOrder(env, order) {
   order.updated_at = new Date().toISOString();
+  if (order.paid_at && !order.invoice_no && env.SELLER_VAT) {
+    // Doorlopende factuurnummering per jaar: 2026-0001, 2026-0002, ...
+    const year = order.paid_at.slice(0, 4);
+    const n = Number((await env.ORDERS.get(`invoice:counter:${year}`)) || 0) + 1;
+    await env.ORDERS.put(`invoice:counter:${year}`, String(n));
+    order.invoice_no = `${year}-${String(n).padStart(4, '0')}`;
+    order.invoice_date = order.paid_at.slice(0, 10);
+  }
   await env.ORDERS.put(`order:${order.id}`, JSON.stringify(order));
 }
 
@@ -204,7 +214,13 @@ async function handleFile(env, key, url) {
   });
 }
 
+async function registerOrder(env, order, d, auth) {
+  await env.ORDERS.put(`recent:${d.getTime()}:${order.id}`, order.id, { expirationTtl: 60 * 60 * 24 * 365 });
+  if (auth) await accounts.linkOrder(env, auth.user, order.id);
+}
+
 async function handleCheckout(req, env) {
+  const auth = await accounts.sessionUser(env, req);
   const body = await req.json().catch(() => null);
   if (!body || !Array.isArray(body.items) || body.items.length < 1 || body.items.length > 20) {
     return json({ error: 'Winkelmand is leeg of ongeldig' }, 400);
@@ -258,7 +274,15 @@ async function handleCheckout(req, env) {
         return json({ error: `De bestanden voor ${item.title} horen niet bij deze samenstelling. Upload opnieuw.` }, 400);
       }
       if (s.status === 'rejected') return json({ error: `De bestanden voor ${item.title} zijn afgekeurd. Upload opnieuw.` }, 400);
-      uploader = { id: s.id, external_id: s.external_id, status: s.status };
+      const last = (s.callbacks || []).slice(-1)[0];
+      const names = [];
+      for (const pr of (last && last.data && last.data.products) || []) {
+        for (const side of ['front_side', 'back_side']) {
+          const f = pr[side] && pr[side].file;
+          if (f && f.file_name) names.push({ side: side === 'back_side' ? 'back' : 'front', name: String(f.file_name).slice(0, 200), preview: f.preview_medium_url || f.preview_url || null });
+        }
+      }
+      uploader = { id: s.id, external_id: s.external_id, status: s.status, files: names };
     } else {
       const fileError = checkFiles(uploaderType, cleanFiles, item.title);
       if (fileError) return json({ error: fileError }, 400);
@@ -274,6 +298,7 @@ async function handleCheckout(req, env) {
       amount: r.amount,
       uploader_type: uploaderType,
       uploader,
+      steps: Array.isArray(it.steps) ? it.steps.slice(0, 40).map((x) => str(x, 60)) : [],
       files: cleanFiles,
       purchase_excl: r._purchase,
       excl: r.price.excl,
@@ -295,8 +320,19 @@ async function handleCheckout(req, env) {
     lines,
     totals,
     remarks: str(body.remarks, 1000),
+    user_email: auth ? auth.user.email : null,
     history: [{ at: d.toISOString(), status: 'awaiting_payment' }],
   };
+  if (auth && body.save_details) {
+    // Gegevens en adres bewaren in het account
+    const u = auth.user;
+    for (const k of ['company', 'first_name', 'last_name']) if (!u.profile[k] && address[k]) u.profile[k] = address[k];
+    if (!u.profile.phone && customer.phone) u.profile.phone = customer.phone;
+    if (!u.profile.vat_number && customer.vat_number) u.profile.vat_number = customer.vat_number;
+    const same = (a) => a.street === address.street && a.house_number === address.house_number && a.postal_code === address.postal_code;
+    if (!(u.addresses || []).some(same)) u.addresses = [...(u.addresses || []), { id: rid(4), label: address.company || 'Leveradres', ...address }].slice(0, 10);
+    await accounts.saveUser(env, u);
+  }
   order.callback_sig = await hmac(env, `probo:${id}`);
   const thanksUrl = `${thanksBase(env, body.return_url)}?order=${id}&t=${order.token}`;
   const mode = paymentMode(env);
@@ -307,7 +343,7 @@ async function handleCheckout(req, env) {
     order.payment = { method: 'transfer', iban: env.BANK_IBAN || '', bic: env.BANK_BIC || '', name: env.BANK_NAME || 'SP Reclamebureau', reference: structuredReference() };
     order.history[0].status = order.status;
     await saveOrder(env, order);
-    await env.ORDERS.put(`recent:${d.getTime()}:${id}`, id, { expirationTtl: 60 * 60 * 24 * 365 });
+    await registerOrder(env, order, d, auth);
     await notifyNewTransfer(env, order).catch(() => {});
     return json({ order_id: id, checkout_url: thanksUrl });
   }
@@ -319,7 +355,7 @@ async function handleCheckout(req, env) {
     order.status = 'paid';
     order.history.push({ at: order.paid_at, status: 'paid (test)' });
     await saveOrder(env, order);
-    await env.ORDERS.put(`recent:${d.getTime()}:${id}`, id, { expirationTtl: 60 * 60 * 24 * 365 });
+    await registerOrder(env, order, d, auth);
     await sendToProbo(env, order);
     await saveOrder(env, order);
     return json({ order_id: id, checkout_url: thanksUrl });
@@ -335,7 +371,7 @@ async function handleCheckout(req, env) {
   });
   order.payment_id = payment.id;
   await saveOrder(env, order);
-  await env.ORDERS.put(`recent:${d.getTime()}:${id}`, id, { expirationTtl: 60 * 60 * 24 * 365 });
+  await registerOrder(env, order, d, auth);
 
   return json({ order_id: id, checkout_url: payment._links.checkout.href });
 }
@@ -467,6 +503,65 @@ async function withThumbs(env, catalog) {
   };
 }
 
+// ---------- klantenaccounts ----------
+const STATUS_NL = {
+  awaiting_payment: 'Wacht op betaling', awaiting_transfer: 'Wacht op overschrijving', paid: 'Betaald',
+  sent_to_supplier: 'In productie', supplier_error: 'In behandeling', supplier_rejected: 'Probleem met bestand',
+  amount_mismatch: 'In behandeling', payment_canceled: 'Betaling geannuleerd', payment_expired: 'Betaling verlopen', payment_failed: 'Betaling mislukt',
+};
+
+async function accountOrder(env, o) {
+  const lines = [];
+  for (const l of o.lines) {
+    const files = [];
+    for (const f of l.files || []) files.push({ name: f.name, side: f.side, url: `${env.WORKER_URL}/api/files/${f.key}?sig=${await hmac(env, `file:${f.key}`)}` });
+    for (const f of (l.uploader && l.uploader.files) || []) files.push({ name: f.name, side: f.side, url: null });
+    lines.push({ code: l.code, title: l.title, summary: l.summary, amount: l.amount, incl: l.incl, options: l.options, steps: l.steps || [], files });
+  }
+  const shipped = /^shipment|delivered/.test(o.supplier_status || '');
+  return {
+    id: o.id, token: o.token, created_at: o.created_at, status: o.status,
+    status_label: shipped ? 'Verzonden' : STATUS_NL[o.status] || o.status,
+    supplier_status: o.supplier_status || null, tracking_url: o.tracking_url || null,
+    totals: o.totals, lines, invoice_no: o.invoice_no || null,
+    payment: o.status === 'awaiting_transfer' ? { ...o.payment, amount: o.totals.total_incl } : null,
+  };
+}
+
+async function handleAccount(req, env, p) {
+  const body = req.method === 'POST' || req.method === 'PUT' ? await req.json().catch(() => ({})) : {};
+  try {
+    if (p === '/api/auth/register' && req.method === 'POST') return json(await accounts.register(env, body));
+    if (p === '/api/auth/login' && req.method === 'POST') return json(await accounts.login(env, body));
+    if (p === '/api/auth/code' && req.method === 'POST') return json(await accounts.requestCode(env, body));
+    if (p === '/api/auth/verify' && req.method === 'POST') return json(await accounts.verifyCode(env, body));
+    const auth = await accounts.sessionUser(env, req);
+    if (p === '/api/auth/logout' && req.method === 'POST') return json(await accounts.logout(env, auth));
+    if (!auth) return json({ error: 'Je bent niet (meer) ingelogd' }, 401);
+    if (p === '/api/account' && req.method === 'GET') return json({ user: accounts.publicUser(auth.user), mail: !!env.RESEND_API_KEY });
+    if (p === '/api/account' && req.method === 'PUT') return json(await accounts.updateAccount(env, auth, body));
+    if (p === '/api/account/password' && req.method === 'POST') return json(await accounts.setPassword(env, auth, body));
+    if (p === '/api/account/orders' && req.method === 'GET') {
+      const out = [];
+      for (const id of (auth.user.orders || []).slice(0, 100)) {
+        const o = await getOrder(env, id);
+        if (o) out.push(await accountOrder(env, o));
+      }
+      return json({ orders: out });
+    }
+    return json({ error: 'Niet gevonden' }, 404);
+  } catch (e) {
+    if (e instanceof accounts.AuthError) return json({ error: e.message }, e.status);
+    throw e;
+  }
+}
+
+async function handleInvoice(env, id, url) {
+  const order = await getOrder(env, id);
+  if (!order || url.searchParams.get('t') !== order.token) return new Response('Niet gevonden', { status: 404 });
+  return new Response(invoiceHtml(order, env), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
+}
+
 // ---------- whitelabel-uploader van Probo ----------
 const UPLOADER_OK = /approv|confirm|complet|accept|done|finish|ok/i;
 
@@ -536,6 +631,8 @@ export default {
       else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await withThumbs(env, await getCatalog(env))), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
+      else if (p.startsWith('/api/auth/') || p.startsWith('/api/account')) res = await handleAccount(req, env, p);
+      else if (/^\/api\/order\/[^/]+\/invoice$/.test(p) && req.method === 'GET') return await handleInvoice(env, p.split('/')[3], url);
       else if (p === '/api/uploader' && req.method === 'POST') res = await handleUploaderCreate(req, env);
       else if (p.startsWith('/api/uploader/') && req.method === 'GET') res = await handleUploaderStatus(env, p.slice(14), url);
       else if (p === '/api/probo/uploader-callback' && req.method === 'POST') return await handleUploaderCallback(req, env, url);

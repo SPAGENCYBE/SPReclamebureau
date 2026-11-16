@@ -21,7 +21,7 @@ const env = {
   SIGNING_SECRET: 's3cret', ADMIN_KEY: 'adm', MARGIN_PERCENT: '40', MIN_MARGIN_EUR: '7.5', SHIPPING_EUR: '9.95',
 };
 
-let proboOrders = [], molliePayment = null, catalogCalls = 0;
+let proboOrders = [], molliePayment = null, catalogCalls = 0, sentMails = [];
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), body = init.body ? JSON.parse(init.body) : null;
   if (u === 'https://api.proboprints.com/products/configure') {
@@ -51,6 +51,7 @@ globalThis.fetch = async (url, init = {}) => {
     catalogCalls++;
     return Response.json({ meta: { page, pages: 2, items: 8, per_page: 100 }, data: pages[page - 1] });
   }
+  if (u === 'https://api.resend.com/emails') { sentMails.push(body); return Response.json({ id: 'm1' }); }
   if (u === 'https://api.proboprints.com/order') { proboOrders.push(body); return Response.json({ status: 'queued', order: { id: body.id } }); }
   if (u === 'https://api.mollie.com/v2/payments') {
     molliePayment = { id: 'tr_1', status: 'open', amount: body.amount, metadata: body.metadata, _links: { checkout: { href: 'https://mollie.test/pay' } } };
@@ -231,3 +232,66 @@ assert.match(res.checkout_url, /^https:\/\/spreclamebureau\.be\/sub\/bedankt\.ht
 res = await (await post('/api/checkout', { ...checkout, return_url: 'https://evil.example/bedankt.html' })).json();
 assert.match(res.checkout_url, /^https:\/\/spreclamebureau\.be\/bedankt\.html\?order=/);
 console.log('Bestandsregels + bedankpagina ✔');
+
+// ---------- klantenaccounts ----------
+{
+  ORDERS.delete = async (k) => void kv.delete(k);
+  const authed = (path, token, init = {}) => call(path, { ...init, headers: { 'Content-Type': 'application/json', Origin: 'https://spreclamebureau.be', Authorization: `Bearer ${token}`, ...(init.headers || {}) } });
+  let r = await post('/api/auth/register', { email: 'Klant@Example.be', password: 'kort' });
+  assert.equal(r.status, 400, 'te kort wachtwoord');
+  r = await (await post('/api/auth/register', { email: 'Klant@Example.be', password: 'geheim123', first_name: 'An', company: 'Bakkerij An' })).json();
+  assert.match(r.token, /^[0-9a-f]{48}$/); assert.equal(r.user.email, 'klant@example.be'); assert.equal(r.user.profile.company, 'Bakkerij An');
+  assert.equal((await post('/api/auth/register', { email: 'klant@example.be', password: 'anders123' })).status, 400, 'geen dubbel account');
+  assert.equal((await post('/api/auth/login', { email: 'klant@example.be', password: 'fout12345' })).status, 401);
+  r = await (await post('/api/auth/login', { email: 'KLANT@example.be', password: 'geheim123' })).json();
+  const tok = r.token;
+  assert.equal((await call('/api/account')).status, 401, 'zonder token geen toegang');
+  r = await (await authed('/api/account', tok)).json();
+  assert.equal(r.user.has_password, true);
+  r = await (await authed('/api/account', tok, { method: 'PUT', body: JSON.stringify({ profile: { vat_number: 'BE0123456789', phone: '0470' }, addresses: [{ label: 'Winkel', street: 'Markt', house_number: '1', postal_code: '9280', city: 'Lebbeke', country: 'BE' }] }) })).json();
+  assert.equal(r.user.profile.vat_number, 'BE0123456789'); assert.equal(r.user.addresses[0].label, 'Winkel');
+
+  // bestellen terwijl ingelogd -> gekoppeld aan account, adres bewaard
+  env.PAYMENT_MODE = 'test'; env.PROBO_ORDER_TYPE = 'test';
+  r = await (await authed('/api/checkout', tok, { method: 'POST', body: JSON.stringify({ ...checkout, items: [{ ...checkout.items[0], steps: ['Formaat', 'Formaat', 'Aantal', 'Afwerking'] }], save_details: true }) })).json();
+  const myOrder = r.order_id;
+  r = await (await authed('/api/account/orders', tok)).json();
+  assert.equal(r.orders[0].id, myOrder); assert.equal(r.orders[0].status_label, 'In productie');
+  assert.deepEqual(r.orders[0].lines[0].steps, ['Formaat', 'Formaat', 'Aantal', 'Afwerking']);
+  assert.match(r.orders[0].lines[0].files[0].url, /\/api\/files\/.+\?sig=/);
+  r = await (await authed('/api/account', tok)).json();
+  assert.equal(r.user.addresses.length, 2, 'nieuw leveradres bewaard');
+
+  // factuur: zonder ondernemingsnummer = bestelbevestiging, met = factuur met nummer
+  const ord = JSON.parse(kv.get('order:' + myOrder));
+  let html = await (await call(`/api/order/${myOrder}/invoice?t=${ord.token}`)).text();
+  assert.match(html, /Bestelbevestiging/); assert.doesNotMatch(html, /Factuur 20/);
+  assert.equal((await call(`/api/order/${myOrder}/invoice?t=fout`)).status, 404);
+  env.SELLER_VAT = 'BE0999999999';
+  r = await (await authed('/api/checkout', tok, { method: 'POST', body: JSON.stringify(checkout) })).json();
+  const o2 = JSON.parse(kv.get('order:' + r.order_id));
+  assert.match(o2.invoice_no, /^\d{4}-0001$/);
+  html = await (await call(`/api/order/${r.order_id}/invoice?t=${o2.token}`)).text();
+  assert.match(html, /Factuur \d{4}-0001/); assert.match(html, /BE0999999999/);
+  delete env.SELLER_VAT;
+
+  // inloggen met code
+  assert.equal((await post('/api/auth/code', { email: 'nieuw@example.be' })).status, 503, 'zonder mail geen code');
+  env.RESEND_API_KEY = 're_test';
+  assert.equal((await post('/api/auth/code', { email: 'nieuw@example.be' })).status, 200);
+  assert.equal((await post('/api/auth/code', { email: 'nieuw@example.be' })).status, 429, 'niet te snel opnieuw');
+  const code = /(\d{6})/.exec(sentMails[sentMails.length - 1].subject)[1];
+  assert.equal((await post('/api/auth/verify', { email: 'nieuw@example.be', code: '000000' })).status, 401);
+  r = await (await post('/api/auth/verify', { email: 'nieuw@example.be', code })).json();
+  assert.match(r.token, /^[0-9a-f]{48}$/); assert.equal(r.user.has_password, false);
+  assert.equal((await post('/api/auth/verify', { email: 'nieuw@example.be', code })).status, 401, 'code maar één keer bruikbaar');
+  // wachtwoord instellen na inloggen met code
+  r = await authed('/api/account/password', r.token, { method: 'POST', body: JSON.stringify({ new_password: 'nieuwwacht1' }) });
+  assert.equal(r.status, 200);
+  assert.equal((await post('/api/auth/login', { email: 'nieuw@example.be', password: 'nieuwwacht1' })).status, 200);
+  // uitloggen
+  await authed('/api/auth/logout', tok, { method: 'POST', body: '{}' });
+  assert.equal((await authed('/api/account', tok)).status, 401);
+  delete env.RESEND_API_KEY;
+  console.log('Klantenaccounts ✔');
+}

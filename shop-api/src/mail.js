@@ -15,6 +15,13 @@ async function send(env, to, subject, html) {
   if (!res.ok) throw new Error(`Resend ${res.status}`);
 }
 
+export const mailEnabled = (env) => !!env.RESEND_API_KEY;
+
+export async function sendMail(env, to, subject, html) {
+  if (!mailEnabled(env)) throw new Error('E-mail is niet ingesteld');
+  await send(env, to, subject, html);
+}
+
 export async function notifyPaid(env, order) {
   if (!env.RESEND_API_KEY) return;
   const rows = order.lines

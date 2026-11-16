@@ -30,8 +30,11 @@
   const PAGE = 24;
   const state = { products: [], categories: [], stepNames: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', q: '', shown: PAGE, product: null, options: [], result: null, files: [], cart: store.get() };
 
-  async function api(path, opts) {
-    const res = await fetch(API + path, opts);
+  const authToken = () => { try { return localStorage.getItem('sp-auth') || ''; } catch { return ''; } };
+  async function api(path, opts = {}) {
+    const tok = authToken();
+    const headers = { ...(opts.headers || {}), ...(tok ? { Authorization: `Bearer ${tok}` } : {}) };
+    const res = await fetch(API + path, { ...opts, headers });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Er ging iets mis. Probeer het opnieuw.');
     return data;
@@ -302,7 +305,7 @@
     if (state.files.some((f) => f.uploading)) return showError($('#cfgMsg'), 'Even wachten tot je bestand volledig is opgeladen.');
     const summary = (r.selected_options || []).map((o) => (o.value !== undefined && o.value !== null && o.value !== '' ? `${o.name || pretty(o.code)}: ${o.value}` : o.name || pretty(o.code))).join(' · ');
     state.cart.push({
-      code: state.product.code, title: state.product.title, options: state.options, summary,
+      code: state.product.code, title: state.product.title, options: state.options, steps: state.stepNames, summary,
       files: viaUploader ? [] : state.files.map((f) => ({ key: f.key, name: f.name, side: f.side })),
       uploader: viaUploader ? { id: state.uploader.id, token: state.uploader.token } : null,
       excl: r.price.excl, incl: r.price.incl,
@@ -360,7 +363,8 @@
     showError($('#checkoutMsg'), '');
     try {
       const r = await postJSON('/api/checkout', {
-        items: state.cart.map(({ code, options, files, uploader }) => ({ code, options, files, uploader })),
+        items: state.cart.map(({ code, options, steps, files, uploader }) => ({ code, options, steps, files, uploader })),
+        save_details: f.get('save_details') === 'on',
         customer: { email: g('email'), phone: g('phone'), vat_number: g('vat_number') },
         address: { company: g('company'), first_name: g('first_name'), last_name: g('last_name'), street: g('street'), house_number: g('house_number'), addition: g('addition'), postal_code: g('postal_code'), city: g('city'), country: g('country') },
         remarks: g('remarks'),
@@ -422,6 +426,47 @@
   document.addEventListener('dragleave', (e) => { const z = e.target.closest('#dropzone'); if (z) z.classList.remove('drag'); });
   document.addEventListener('drop', (e) => { const z = e.target.closest('#dropzone'); if (z) { e.preventDefault(); z.classList.remove('drag'); uploadFiles([...e.dataTransfer.files]); } });
 
+  // ---------- account: gegevens invullen + opnieuw bestellen ----------
+  async function setupAccount() {
+    const box = $('#checkoutAccount');
+    if (!box) return;
+    if (!authToken()) {
+      box.innerHTML = 'Heb je een account? <a class="accent" href="account.html?next=webshop">Log in</a> en je gegevens worden ingevuld. Nog geen account? <a class="accent" href="account.html?next=webshop">Maak er een aan</a>.';
+      return;
+    }
+    try {
+      const { user } = await api('/api/account');
+      state.account = user;
+      const form = $('#checkoutForm');
+      const set = (n, v) => { const el = form.elements[n]; if (el && !el.value && v) el.value = v; };
+      set('email', user.email); set('phone', user.profile.phone); set('vat_number', user.profile.vat_number);
+      const fill = (a) => { for (const k of ['company', 'first_name', 'last_name', 'street', 'house_number', 'addition', 'postal_code', 'city']) { const el = form.elements[k]; if (el) el.value = a[k] || user.profile[k] || ''; } if (form.elements.country) form.elements.country.value = a.country || 'BE'; };
+      const addrs = user.addresses || [];
+      box.innerHTML = `Ingelogd als <strong>${esc(user.email)}</strong>.` + (addrs.length > 1 ? ` <label>Leveradres: <select id="addrPick">${addrs.map((a, i) => `<option value="${i}">${esc(a.label || a.street + ' ' + a.house_number)}</option>`).join('')}</select></label>` : '')
+        + ' <label><input type="checkbox" name="save_details" form="checkoutForm" checked> Gegevens bewaren in mijn account</label>';
+      fill(addrs[0] || user.profile);
+      $('#addrPick')?.addEventListener('change', (ev) => fill(addrs[Number(ev.target.value)]));
+    } catch {
+      box.innerHTML = '<a class="accent" href="account.html?next=webshop">Log opnieuw in</a> om je gegevens in te vullen.';
+    }
+  }
+
+  async function reorderFromUrl() {
+    const m = /^([^:]+):(\d+)$/.exec(new URLSearchParams(location.search).get('reorder') || '');
+    if (!m || !authToken()) return;
+    try {
+      const { orders } = await api('/api/account/orders');
+      const line = (orders.find((o) => o.id === m[1]) || { lines: [] }).lines[Number(m[2])];
+      if (!line || !state.products.find((p) => p.code === line.code)) return;
+      await selectProduct(line.code);
+      state.options = line.options.map((o) => ({ ...o }));
+      state.stepNames = line.steps && line.steps.length === line.options.length ? [...line.steps] : line.options.map(() => '');
+      await reconfigure();
+      showError($('#cfgMsg'), '');
+      $('#cfgMsg').innerHTML = '<div class="msg ok">Je vorige samenstelling staat klaar. Pas aan wat je wil en upload je ontwerp.</div>';
+    } catch { /* stil */ }
+  }
+
   // ---------- start ----------
   async function init() {
     renderCart();
@@ -444,6 +489,9 @@
       }
       renderCatalog();
       renderCart();
+      setupAccount();
+      reorderFromUrl();
+      if (location.hash === '#checkout' && state.cart.length) { $('#checkout').hidden = false; $('#checkout').scrollIntoView(); }
     } catch (e) {
       showError($('#productGrid'), 'De webshop is even niet bereikbaar. Probeer het later opnieuw of mail naar info@sp-agency.be.');
     }

@@ -1212,6 +1212,7 @@ body[data-theme="dark"] .footer img[src*="logo-wide"]{
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <meta name="sp-shop-api" content="https://sp-shop-api.spreclamebureau.workers.dev">
   <link rel="stylesheet" href="assets/shop.css">
+  <style id="nav-nowrap">@media(min-width:981px){.nav-links a{white-space:nowrap}}</style>
 </head>
 <body data-theme="dark">
 <header class="site-header">
@@ -1227,6 +1228,7 @@ body[data-theme="dark"] .footer img[src*="logo-wide"]{
         <a href="index.html#werkwijze">Werkwijze</a>
         <a href="index.html#contact">Contact</a>
         <a href="webshop.html">Webshop</a>
+        <a href="account.html">Account</a>
         <a class="btn" href="mailto:info@sp-agency.be?subject=Offerteaanvraag%20SP%20Reclamebureau">Offerte aanvragen</a>
       </nav>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="Wissel tussen licht en donker thema" aria-pressed="true">
@@ -1279,6 +1281,7 @@ body[data-theme="dark"] .footer img[src*="logo-wide"]{
           <div class="checkout" id="checkout" hidden>
             <h2>Gegevens &amp; levering</h2>
             <p class="muted" id="payInfo2">Na het betalen gaat je bestelling meteen in productie.</p>
+            <div class="checkout-account" id="checkoutAccount"></div>
             <form id="checkoutForm" autocomplete="on">
               <div class="form-grid">
                 <label class="field c3">Voornaam<input name="first_name" required autocomplete="given-name"></label>
