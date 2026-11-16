@@ -19,6 +19,7 @@ import * as probo from './probo.js';
 import * as mollie from './mollie.js';
 import { notifyPaid, notifyNewTransfer } from './mail.js';
 import { adminPage } from './admin.js';
+import { fillImages, serveThumb, thumbIndex } from './images.js';
 import { putFile, hasFile, getFile, maxUpload } from './storage.js';
 
 const ALLOWED_TYPES = {
@@ -429,9 +430,20 @@ async function handleMarkPaid(env, url) {
   return json({ ok: true, status: order.status, probo_error: order.probo_error || null });
 }
 
+async function withThumbs(env, catalog) {
+  const index = await thumbIndex(env);
+  return {
+    ...catalog,
+    products: catalog.products.map((p) => (index[p.code] && index[p.code].v ? { ...p, image: `${env.WORKER_URL}/api/img/${p.code}?v=${index[p.code].v}` } : p)),
+  };
+}
+
 // ---------- router ----------
 
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(fillImages(env).catch((e) => console.error('fillImages', e)));
+  },
   async fetch(req, env) {
     const url = new URL(req.url);
     const h = cors(env, req);
@@ -440,9 +452,11 @@ export default {
     try {
       let res;
       if (p === '/api/health') res = json({ ok: true, probo: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test', payment: paymentMode(env) });
-      else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await getCatalog(env)), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
+      else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await withThumbs(env, await getCatalog(env))), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
+      else if (p.startsWith('/api/img/') && req.method === 'GET') return await serveThumb(env, p.slice(9));
+      else if (p === '/api/admin/fill-images') res = isAdmin(env, url) ? json(await fillImages(env, Math.min(Number(url.searchParams.get('limit')) || 14, 15))) : json({ error: 'Geen toegang' }, 403);
       else if (p.startsWith('/api/files/') && req.method === 'GET') return await handleFile(env, p.slice(11), url);
       else if (p === '/api/checkout' && req.method === 'POST') res = await handleCheckout(req, env);
       else if (p === '/api/mollie/webhook' && req.method === 'POST') return await handleMollieWebhook(req, env);

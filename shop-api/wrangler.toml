@@ -33,3 +33,11 @@ id = "84a0b1afedcf4f9b86a7f0ccdd2a2b1c"
 # [[r2_buckets]]
 # binding = "FILES"
 # bucket_name = "sp-shop-files"    # npx wrangler r2 bucket create sp-shop-files
+
+# Productfoto's verkleinen (Cloudflare Images, gratis tot 5000 bewerkingen/maand)
+[images]
+binding = "IMAGES"
+
+# Elk uur ontbrekende productfoto's aanvullen
+[triggers]
+crons = ["17 * * * *"]

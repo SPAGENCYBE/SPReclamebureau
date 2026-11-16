@@ -98,4 +98,6 @@ export function buildOrderPayload(order, env) {
 export const rawGet = (env, path) => call(env, 'GET', path);
 export const rawConfigure = (env, code, options) => call(env, 'POST', '/products/configure', { products: [{ code, options: options || [] }] });
 
+export const getProduct = (env, code) => call(env, 'GET', `/products/product/${encodeURIComponent(code)}`);
+
 export const placeOrder = (env, payload) => call(env, 'POST', '/order', payload);

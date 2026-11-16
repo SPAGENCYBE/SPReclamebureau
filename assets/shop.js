@@ -42,7 +42,7 @@
   // ---------- catalogus ----------
   function productCard(p) {
     return `<button type="button" class="product-card ${state.product?.code === p.code ? 'active' : ''}" data-code="${esc(p.code)}">
-        <div class="pc-icon">${icon(p.category_key)}</div>
+        ${p.image ? `<div class="pc-photo"><img src="${esc(p.image)}" alt="${esc(p.title)}" loading="lazy"></div>` : `<div class="pc-icon">${icon(p.category_key)}</div>`}
         <div class="pc-body">${state.cat === 'Alles' || state.q ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}<h3>${esc(p.title)}</h3>${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}</div>
       </button>`;
   }
@@ -88,6 +88,8 @@
     box.hidden = false;
     $('#catalogWrap').hidden = true;
     $('#cfgTitle').textContent = state.product.title;
+    const ph = $('#cfgPhoto');
+    if (ph) { ph.innerHTML = state.product.image ? `<img src="${esc(state.product.image)}" alt="${esc(state.product.title)}">` : ''; ph.hidden = !state.product.image; }
     $('#cfgDesc').textContent = state.product.description;
     $('#shopTop').scrollIntoView({ behavior: 'smooth', block: 'start' });
     await reconfigure();

@@ -36,6 +36,11 @@ globalThis.fetch = async (url, init = {}) => {
       prices_total: done ? { '18': { purchase_price: 0 }, '24': { purchase_price: 30.0 }, '48': { purchase_price: 20.0 } } : undefined,
     }], calculation_id: 1 });
   }
+  if (u.startsWith('https://api.proboprints.com/products/product/')) {
+    const code = decodeURIComponent(u.split('/').pop());
+    return Response.json({ code, images: code === 'tiewraps' ? [] : [{ language: 'all', url: `https://cdn.print-uploader.com/2026/1/${code}abcdefgh.jpg` }] });
+  }
+  if (u.startsWith('https://cdn.print-uploader.com/')) return new Response(new Uint8Array([255, 216, 255, 1, 2, 3]), { headers: { 'Content-Type': 'image/jpeg' } });
   if (u.startsWith('https://api.proboprints.com/products?')) {
     const page = Number(new URL(u).searchParams.get('page'));
     const mk = (code, nl, group = 'Composed product', active = true) => ({ code, active, article_group_name: group, translations: { nl: { title: nl, description: nl } } });
@@ -183,3 +188,18 @@ r = await (await post('/api/checkout', checkout)).json();
 assert.equal(proboOrders.length, 0);
 assert.equal(JSON.parse(kv.get('order:' + r.order_id)).status, 'awaiting_transfer');
 console.log('Overschrijving + testbetaling ✔');
+
+// ---------- productfoto's ----------
+r = await (await call('/api/admin/fill-images?key=adm&limit=3')).json();
+assert.equal(r.done, 3); assert.ok(r.remaining > 0);
+r = await (await call('/api/admin/fill-images?key=adm')).json();
+assert.equal(r.remaining, 0, 'alle foto\'s verwerkt');
+r = await (await call('/api/products')).json();
+const ban = r.products.find((p) => p.code === 'banner');
+assert.match(ban.image, /^https:\/\/api\.test\/api\/img\/banner\?v=/);
+assert.equal(r.products.find((p) => p.code === 'tiewraps').image, undefined, 'geen foto → geen image');
+const img = await call('/api/img/banner');
+assert.equal(img.status, 200); assert.equal(img.headers.get('Content-Type'), 'image/jpeg');
+assert.equal((await call('/api/img/onbekend')).status, 404);
+assert.equal((await call('/api/admin/fill-images?key=fout')).status, 403);
+console.log('Productfoto\'s ✔');
