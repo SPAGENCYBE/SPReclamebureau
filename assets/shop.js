@@ -27,7 +27,7 @@
   };
   const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ICONS.promo}</svg>`;
   const PAGE = 24;
-  const state = { products: [], categories: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', q: '', shown: PAGE, product: null, options: [], result: null, files: [], cart: store.get() };
+  const state = { products: [], categories: [], stepNames: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', q: '', shown: PAGE, product: null, options: [], result: null, files: [], cart: store.get() };
 
   async function api(path, opts) {
     const res = await fetch(API + path, opts);
@@ -81,13 +81,15 @@
   async function selectProduct(code) {
     state.product = state.products.find((p) => p.code === code);
     state.options = [];
+    state.stepNames = [];
     state.files = [];
     renderCatalog();
     const box = $('#configurator');
     box.hidden = false;
+    $('#catalogWrap').hidden = true;
     $('#cfgTitle').textContent = state.product.title;
     $('#cfgDesc').textContent = state.product.description;
-    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('#shopTop').scrollIntoView({ behavior: 'smooth', block: 'start' });
     await reconfigure();
   }
 
@@ -108,15 +110,27 @@
   function renderConfigurator() {
     const r = state.result;
     const sel = r.selected_options || [];
-    const label = (o) => {
+    const nameOf = (o) => {
       const s = sel.find((x) => x.code === o.code);
-      const name = (s && s.name) || pretty(o.code);
-      return o.value !== undefined ? `${name}: ${o.value}` : name;
+      return (s && s.name) || pretty(o.code);
     };
-    let html = '';
-    if (state.options.length) {
-      html += `<div class="chosen">${state.options.map((o, i) => `<span>${esc(label(o))} <button type="button" data-undo="${i}" title="Vanaf hier wijzigen">wijzig</button></span>`).join('')}</div>`;
-    }
+    // Afgewerkte stappen, gegroepeerd per stapnaam
+    const done = [];
+    state.options.forEach((o, i) => {
+      const group = state.stepNames[i] || '';
+      const last = done[done.length - 1];
+      const text = o.value !== undefined ? `${nameOf(o)} ${o.value}` : nameOf(o);
+      if (last && last.group === group && group) last.parts.push(text);
+      else done.push({ group, parts: [text], index: i });
+    });
+    let step = 0;
+    let html = done.map((d) => `
+      <div class="step done">
+        <span class="step-no">✓</span>
+        <div class="step-sum"><span class="muted">${esc(d.group || 'Keuze')}</span><strong>${esc(d.parts.join(' × '))}</strong></div>
+        <button type="button" class="step-edit" data-undo="${d.index}" title="Wijzig deze stap" aria-label="Wijzig ${esc(d.group)}">✎</button>
+      </div>`).join('');
+    step = done.length;
 
     const inputGroups = [], choiceGroups = [];
     for (const g of r.available_options || []) {
@@ -125,31 +139,42 @@
       else choiceGroups.push(g);
     }
     if (inputGroups.length) {
-      html += '<form class="opt-group" id="inputForm"><div class="opt-inputs">';
+      step += 1;
+      const title = inputGroups.map((g) => g.name || pretty(g.code)).join(' & ');
+      html += `<div class="step open"><div class="step-head"><span class="step-no">${step}</span><h4>${esc(title)}</h4></div>
+        <form id="inputForm" class="opt-inputs">`;
       for (const g of inputGroups) {
         for (const k of g.children) {
-          const unit = ['width', 'height', 'length'].includes(k.type_code) ? ' (cm)' : '';
+          const unit = k.unit_code === 'cm' || ['width', 'height', 'length'].includes(k.type_code) ? ' (cm)' : '';
           const min = k.min_value && Number(k.min_value) > 0 ? ` min="${esc(k.min_value)}"` : ' min="1"';
-          const max = k.max_value ? ` max="${esc(k.max_value)}"` : '';
-          html += `<label class="field">${esc(k.name || pretty(k.code))}${unit}<input type="number" step="any" required name="${esc(k.code)}"${min}${max}></label>`;
+          const max = k.max_value && Number(k.max_value) < 99999 ? ` max="${esc(k.max_value)}"` : '';
+          html += `<label class="field">${esc(k.name || pretty(k.code))}${unit}<input type="number" step="any" required name="${esc(k.code)}" data-group="${esc(g.name || pretty(g.code))}"${min}${max}></label>`;
         }
       }
-      html += '<button class="btn" type="submit">Verder</button></div></form>';
+      html += '<button class="btn" type="submit">Verder</button></form></div>';
     }
     for (const g of choiceGroups) {
-      html += `<div class="opt-group"><span class="opt-title">${esc(g.name || pretty(g.code))}</span><div class="opt-choices">`;
+      step += 1;
+      const gname = g.name || pretty(g.code);
+      html += `<div class="step open"><div class="step-head"><span class="step-no">${step}</span><h4>${esc(gname)}</h4></div><div class="opt-cards">`;
       for (const k of g.children || []) {
         if (k.available === false) continue;
+        const badge = k.label ? `<span class="opt-badge${/duurza/i.test(k.label) ? ' green' : ''}">${esc(k.label)}</span>` : '';
         if (INPUT_TYPES.includes(k.type_code)) {
           // Vrij getal binnen een keuzegroep, bv. "Gewenste oplage"
           const min = k.min_value && Number(k.min_value) > 0 ? k.min_value : 1;
-          html += `<form class="opt-choice opt-free" data-free="${esc(k.code)}"><span>${esc(k.name || pretty(k.code))}</span>
-            <input type="number" name="v" min="${esc(min)}"${k.max_value ? ` max="${esc(k.max_value)}"` : ''} step="${esc(k.step_size || 'any')}" required placeholder="${esc(k.description || '')}" style="width:110px;min-height:34px;border-radius:8px;border:1px solid var(--s-line);background:var(--s-input);color:var(--s-text);padding:4px 8px">
-            <button type="submit" class="btn" style="min-height:34px;padding:6px 12px">OK</button></form>`;
+          html += `<form class="opt-card opt-free" data-free="${esc(k.code)}" data-group="${esc(gname)}">${badge}
+            <div class="oc-body"><strong>${esc(k.name || pretty(k.code))}</strong>${k.description ? `<small>${esc(k.description)}</small>` : ''}
+            <div class="oc-free"><input type="number" name="v" min="${esc(min)}"${k.max_value ? ` max="${esc(k.max_value)}"` : ''} step="${esc(k.step_size || 1)}" required placeholder="Aantal">
+            <button type="submit" class="btn">OK</button></div></div></form>`;
           continue;
         }
         const img = k.images && k.images[0] && k.images[0].url;
-        html += `<button type="button" class="opt-choice" data-opt="${esc(k.code)}" title="${esc(k.description || '')}">${img ? `<img src="${esc(img)}" alt="">` : ''}${esc(k.name || pretty(k.code))}${k.description && !img ? `<small class="muted" style="font-weight:500">&nbsp;${esc(k.description)}</small>` : ''}</button>`;
+        const photo = img && /\.(jpe?g|png|webp)(\?|$)/i.test(img);
+        html += `<button type="button" class="opt-card${photo ? ' has-photo' : ''}" data-opt="${esc(k.code)}" data-group="${esc(gname)}">
+          ${badge}${img ? `<span class="oc-img"><img src="${esc(img)}" alt="" loading="lazy"></span>` : ''}
+          <span class="oc-body"><strong>${esc(k.name || pretty(k.code))}</strong>${k.description ? `<small>${esc(k.description)}</small>` : ''}</span>
+        </button>`;
       }
       html += '</div></div>';
     }
@@ -212,11 +237,20 @@
     });
     store.set(state.cart);
     renderCart();
-    state.options = []; state.files = [];
+    state.options = []; state.stepNames = []; state.files = [];
     $('#configurator').hidden = true;
+    $('#catalogWrap').hidden = false;
     state.product = null;
     renderCatalog();
     $('#cart').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeConfigurator() {
+    $('#configurator').hidden = true;
+    $('#catalogWrap').hidden = false;
+    state.product = null; state.options = []; state.stepNames = []; state.files = [];
+    renderCatalog();
+    $('#shopTop').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ---------- winkelmand + afrekenen ----------
@@ -276,11 +310,12 @@
     if (t.dataset.cat) { state.cat = t.dataset.cat; state.q = ''; const si = $('#shopSearch'); if (si) si.value = ''; state.shown = PAGE; renderCatalog(); $('#shopTop').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     else if (t.id === 'showMore') { state.shown += PAGE * 2; renderCatalog(); }
     else if (t.dataset.code) selectProduct(t.dataset.code);
-    else if (t.dataset.opt) { state.options.push({ code: t.dataset.opt }); reconfigure(); }
-    else if (t.dataset.undo !== undefined) { state.options = state.options.slice(0, Number(t.dataset.undo)); state.files = []; reconfigure(); }
+    else if (t.dataset.opt) { state.options.push({ code: t.dataset.opt }); state.stepNames.push(t.dataset.group || ''); reconfigure(); }
+    else if (t.dataset.undo !== undefined) { const n = Number(t.dataset.undo); state.options = state.options.slice(0, n); state.stepNames = state.stepNames.slice(0, n); state.files = []; reconfigure(); }
     else if (t.dataset.rmfile !== undefined) { state.files.splice(Number(t.dataset.rmfile), 1); renderFiles(); }
     else if (t.dataset.rm !== undefined) { state.cart.splice(Number(t.dataset.rm), 1); store.set(state.cart); renderCart(); }
     else if (t.id === 'addToCart') addToCart();
+    else if (t.id === 'cfgBack') { closeConfigurator(); }
     else if (t.id === 'toCheckout') { $('#checkout').hidden = false; $('#checkout').scrollIntoView({ behavior: 'smooth' }); }
   });
   document.addEventListener('submit', (e) => {
@@ -288,14 +323,15 @@
       e.preventDefault();
       const v = new FormData(e.target).get('v');
       state.options.push({ code: e.target.dataset.free, value: String(v) });
+      state.stepNames.push(e.target.dataset.group || '');
       reconfigure();
       return;
     }
     if (e.target.id === 'inputForm') {
       e.preventDefault();
-      for (const [k, v] of new FormData(e.target)) {
-        state.options = state.options.filter((o) => o.code !== k);
-        state.options.push({ code: k, value: String(v) });
+      for (const inp of e.target.querySelectorAll('input[name]')) {
+        state.options.push({ code: inp.name, value: String(inp.value) });
+        state.stepNames.push(inp.dataset.group || '');
       }
       reconfigure();
     } else if (e.target.id === 'checkoutForm') submitCheckout(e);
