@@ -10,7 +10,7 @@ async function send(env, to, subject, html) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: env.MAIL_FROM || 'SP Reclamebureau <shop@spreclamebureau.be>', to, subject, html }),
+    body: JSON.stringify({ from: env.MAIL_FROM || 'SP Reclamebureau <shop@spreclamebureau.be>', reply_to: env.OWNER_EMAIL || 'info@sp-agency.be', to, subject, html }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}`);
 }

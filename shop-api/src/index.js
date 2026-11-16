@@ -670,6 +670,15 @@ export default {
           } catch (e) { res = json({ error: e.message, status: e.status, body: e.body }); }
         }
       }
+      else if (p === '/api/admin/resend-domain') {
+        if (!isAdmin(env, url)) res = json({ error: 'Geen toegang' }, 403);
+        else {
+          const h = { Authorization: `Bearer ${env.RESEND_API_KEY}` };
+          const list = await fetch('https://api.resend.com/domains', { headers: h }).then((r) => r.json());
+          const d = (list.data || [])[0];
+          res = json(d ? await fetch(`https://api.resend.com/domains/${d.id}${url.searchParams.get('verify') ? '/verify' : ''}`, { method: url.searchParams.get('verify') ? 'POST' : 'GET', headers: h }).then((r) => r.json()) : list);
+        }
+      }
       else if (p === '/api/admin/orders') res = isAdmin(env, url) ? await handleAdminOrders(env) : json({ error: 'Geen toegang' }, 403);
       else res = json({ error: 'Niet gevonden' }, 404);
       for (const [k, v] of Object.entries(h)) res.headers.set(k, v);
