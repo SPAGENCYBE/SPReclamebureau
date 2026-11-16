@@ -1,6 +1,8 @@
 // Probo Reseller API — https://api.proboprints.com
 // Authenticatie: header "Authorization: Basic <bearer-code die Probo je geeft>"
 
+import { proboFiles } from './files.js';
+
 export class ProboError extends Error {
   constructor(message, status, body) {
     super(message);
@@ -59,7 +61,8 @@ export async function configure(env, code, options) {
 export function buildOrderPayload(order, env) {
   const a = order.address;
   return {
-    id: order.id,
+    // Bij opnieuw versturen (na weigering) een nieuw id; de referentie blijft het bestelnummer.
+    id: order.probo_attempts > 1 ? `${order.id}-${order.probo_attempts}` : order.id,
     reference: order.id,
     contact_email: env.PROBO_CONTACT_EMAIL || 'info@sp-agency.be',
     order_type: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test',
@@ -89,7 +92,7 @@ export function buildOrderPayload(order, env) {
       id: i + 1,
       code: l.code,
       options: l.options,
-      files: l.files.map((f) => ({ uri: f.uri, side: f.side || 'front' })),
+      files: proboFiles(l),
     })),
   };
 }

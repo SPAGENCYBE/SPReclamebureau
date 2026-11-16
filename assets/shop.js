@@ -185,6 +185,9 @@
       const u = (r.uploaders || [])[0];
       html += `<div class="price-box"><div><div class="muted">Prijs voor ${esc(r.amount)} stuk(s)</div><div class="big">${eur(r.price.incl)}</div><div class="muted">${eur(r.price.excl)} excl. btw</div></div></div>
         <div class="opt-group"><span class="opt-title">Drukbestand</span>
+          <div class="file-hint">${u && u.type === 'double'
+            ? '<strong>Dubbelzijdig:</strong> upload een <b>voorkant én achterkant</b> (2 bestanden), of <b>één PDF met 2 pagina\'s</b> (pagina 1 = voorkant, pagina 2 = achterkant).'
+            : '<strong>Enkelzijdig:</strong> upload <b>één bestand</b> met je ontwerp.'}</div>
           <label class="dropzone" id="dropzone"><input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple>
             <strong>Sleep je bestand hierheen</strong> of klik om te kiezen<br><small class="muted">PDF, JPG of PNG, max. ${state.settings.max_upload_mb || 100} MB${u ? ` · ${esc(u.width)} × ${esc(u.height)} cm${u.bleed && u.bleed[0] ? ` + ${esc(u.bleed[0])} cm afloop` : ''}${u.minimal_dpi ? ` · min. ${esc(u.minimal_dpi)} dpi` : ''}` : ''}</small>
           </label>
@@ -230,6 +233,16 @@
   function addToCart() {
     const r = state.result;
     if (!state.files.length) return showError($('#cfgMsg'), 'Upload eerst je drukbestand.');
+    const type = ((r.uploaders || [])[0] || {}).type || 'single';
+    const isPdf = (f) => /\.pdf$/i.test(f.name || '');
+    if (type === 'double') {
+      const fronts = state.files.filter((f) => f.side !== 'back').length, backs = state.files.filter((f) => f.side === 'back').length;
+      if (!((fronts === 1 && backs === 1) || (state.files.length === 1 && isPdf(state.files[0])))) {
+        return showError($('#cfgMsg'), 'Dit product wordt aan twee kanten bedrukt. Upload een voorkant én een achterkant, of één PDF met 2 pagina\'s.');
+      }
+    } else if (state.files.length > 1) {
+      return showError($('#cfgMsg'), 'Voor dit product upload je één bestand. Verwijder de andere bestanden.');
+    }
     if (state.files.some((f) => f.uploading)) return showError($('#cfgMsg'), 'Even wachten tot je bestand volledig is opgeladen.');
     const summary = (r.selected_options || []).map((o) => (o.value !== undefined && o.value !== null && o.value !== '' ? `${o.name || pretty(o.code)}: ${o.value}` : o.name || pretty(o.code))).join(' · ');
     state.cart.push({
@@ -295,6 +308,7 @@
         address: { company: g('company'), first_name: g('first_name'), last_name: g('last_name'), street: g('street'), house_number: g('house_number'), addition: g('addition'), postal_code: g('postal_code'), city: g('city'), country: g('country') },
         remarks: g('remarks'),
         accept_terms: f.get('accept_terms') === 'on',
+        return_url: new URL('bedankt.html', location.href).href,
       });
       try { sessionStorage.setItem('sp-last-order', r.order_id); } catch { /* */ }
       window.location.href = r.checkout_url;

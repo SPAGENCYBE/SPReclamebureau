@@ -32,7 +32,7 @@ globalThis.fetch = async (url, init = {}) => {
       code: body.products[0].code, can_order: done, amount: 2, width: 40, height: 60,
       available_options: done ? [] : [{ code: 'finishing', children: [{ type_code: 'radio', code: 'cut', name: 'Snijden' }] }],
       selected_options: body.products[0].options.map((o) => ({ ...o, name: o.code })),
-      uploaders: done ? [{ type: 'single', amount: 2, width: 40, height: 60, minimal_dpi: 72, bleed_top: 1, bleed_right: 1, bleed_bottom: 1, bleed_left: 1 }] : [],
+      uploaders: done ? [{ type: body.products[0].options.some((o) => o.code === 'double') ? 'double' : 'single', amount: 2, width: 40, height: 60, minimal_dpi: 72, bleed_top: 1, bleed_right: 1, bleed_bottom: 1, bleed_left: 1 }] : [],
       prices_total: done ? { '18': { purchase_price: 0 }, '24': { purchase_price: 30.0 }, '48': { purchase_price: 20.0 } } : undefined,
     }], calculation_id: 1 });
   }
@@ -125,6 +125,8 @@ assert.equal(po.order_type, 'test');
 assert.equal(po.id, orderId);
 assert.equal(po.products[0].code, 'banner');
 assert.match(po.products[0].files[0].uri, /^https:\/\/api\.test\/api\/files\/.+\?sig=[0-9a-f]{40}$/);
+assert.equal(po.products[0].files[0].amount, 2, 'amount = oplage');
+assert.equal(po.products[0].files[0].side, 'front');
 assert.equal(JSON.parse(kv.get('order:' + orderId)).status, 'sent_to_supplier');
 
 // 8. Probo kan het bestand downloaden met de handtekening, zonder niet
@@ -203,3 +205,29 @@ assert.equal(img.status, 200); assert.equal(img.headers.get('Content-Type'), 'im
 assert.equal((await call('/api/img/onbekend')).status, 404);
 assert.equal((await call('/api/admin/fill-images?key=fout')).status, 403);
 console.log('Productfoto\'s ✔');
+
+// ---------- bestandsregels (Probo) ----------
+import { checkFiles, proboFiles } from '../src/files.js';
+const pdf = { key: 'x/a.pdf', side: 'front', uri: 'u/a.pdf' }, png = { key: 'x/b.png', side: 'front', uri: 'u/b.png' }, pngBack = { key: 'x/c.png', side: 'back', uri: 'u/c.png' };
+assert.equal(checkFiles('single', [png], 'T'), null);
+assert.ok(checkFiles('single', [png, pngBack], 'T'));
+assert.ok(checkFiles('double', [png], 'T'), 'dubbelzijdig met één afbeelding geweigerd');
+assert.equal(checkFiles('double', [pdf], 'T'), null);
+assert.equal(checkFiles('double', [png, pngBack], 'T'), null);
+assert.deepEqual(proboFiles({ amount: 1500, uploader_type: 'double', options: [], files: [png, pngBack] }),
+  [{ uri: 'u/b.png', side: 'front', amount: 1500 }, { uri: 'u/c.png', side: 'back', amount: 1500 }]);
+assert.deepEqual(proboFiles({ amount: 250, uploader_type: 'double', options: [], files: [pdf] }),
+  [{ uri: 'u/a.pdf', pages: [{ page: 1, side: 'front', amount: 250 }, { page: 2, side: 'back', amount: 250 }] }]);
+assert.deepEqual(proboFiles({ amount: 3, options: [], files: [png] }), [{ uri: 'u/b.png', side: 'front', amount: 3 }]);
+
+// dubbelzijdig product met één png wordt bij afrekenen geweigerd
+env.PROBO_ORDER_TYPE = 'test'; env.PAYMENT_MODE = 'test';
+const dbl = [...options.slice(0, 3), { code: 'double' }, { code: 'cut' }];
+let res = await post('/api/checkout', { ...checkout, items: [{ code: 'banner', options: dbl, files: [{ key: fileKey, name: 'a.pdf' }] }] });
+assert.equal(res.status, 200, 'pdf mag voor dubbelzijdig');
+// bedankpagina: alleen toegelaten sites
+res = await (await post('/api/checkout', { ...checkout, return_url: 'https://spreclamebureau.be/sub/bedankt.html' })).json();
+assert.match(res.checkout_url, /^https:\/\/spreclamebureau\.be\/sub\/bedankt\.html\?order=/);
+res = await (await post('/api/checkout', { ...checkout, return_url: 'https://evil.example/bedankt.html' })).json();
+assert.match(res.checkout_url, /^https:\/\/spreclamebureau\.be\/bedankt\.html\?order=/);
+console.log('Bestandsregels + bedankpagina ✔');

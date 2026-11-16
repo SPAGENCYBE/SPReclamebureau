@@ -162,3 +162,5 @@ body[data-theme="light"] .product-card .pc-icon{background:radial-gradient(circl
 .cfg-photo[hidden]{display:none}
 .cfg-photo img{width:100%;height:100%;object-fit:cover;display:block}
 @media(max-width:640px){.cfg-head{flex-direction:column;align-items:flex-start}.cfg-photo{width:100%;height:auto;aspect-ratio:16/10}}
+.file-hint{margin:0 0 12px;padding:12px 14px;border-radius:12px;background:rgba(244,91,0,.08);border:1px solid rgba(244,91,0,.25);font-size:14px;line-height:1.5}
+.file-hint b{color:var(--orange)}

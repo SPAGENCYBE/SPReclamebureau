@@ -19,6 +19,7 @@ import * as probo from './probo.js';
 import * as mollie from './mollie.js';
 import { notifyPaid, notifyNewTransfer } from './mail.js';
 import { adminPage } from './admin.js';
+import { checkFiles } from './files.js';
 import { fillImages, serveThumb, thumbIndex } from './images.js';
 import { putFile, hasFile, getFile, maxUpload } from './storage.js';
 
@@ -106,6 +107,18 @@ export function structuredReference() {
   const check = Number(BigInt(base) % 97n) || 97;
   const s = base + String(check).padStart(2, '0');
   return `+++${s.slice(0, 3)}/${s.slice(3, 7)}/${s.slice(7)}+++`;
+}
+
+/** Bedankpagina op de site waar besteld werd (alleen toegelaten sites), anders de hoofdsite. */
+function thanksBase(env, returnUrl) {
+  try {
+    const u = new URL(String(returnUrl || ''));
+    const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim());
+    if (allowed.includes(u.origin) && /\/bedankt\.html$/.test(u.pathname)) return u.origin + u.pathname;
+  } catch {
+    /* ongeldige url */
+  }
+  return `${env.SITE_URL}/bedankt.html`;
 }
 
 const isAdmin = (env, url) => env.ADMIN_KEY && url.searchParams.get('key') === env.ADMIN_KEY;
@@ -222,8 +235,10 @@ async function handleCheckout(req, env) {
     const item = await findCatalogItem(env, it && it.code);
     const options = cleanOptions(it && it.options);
     if (!item || !options) return json({ error: 'Ongeldig product in winkelmand' }, 400);
+    const r = await priced(env, item.code, options);
+    if (!r.can_order || !r.price) return json({ error: `${item.title} is niet volledig samengesteld` }, 400);
+    const uploaderType = (r.uploaders && r.uploaders[0] && r.uploaders[0].type) || 'single';
     const files = Array.isArray(it.files) ? it.files.slice(0, 4) : [];
-    if (files.length < 1) return json({ error: `Upload een drukbestand voor ${item.title}` }, 400);
     const cleanFiles = [];
     for (const f of files) {
       const key = str(f && f.key, 80);
@@ -236,8 +251,8 @@ async function handleCheckout(req, env) {
         uri: `${env.WORKER_URL}/api/files/${key}?sig=${sig}`,
       });
     }
-    const r = await priced(env, item.code, options);
-    if (!r.can_order || !r.price) return json({ error: `${item.title} is niet volledig samengesteld` }, 400);
+    const fileError = checkFiles(uploaderType, cleanFiles, item.title);
+    if (fileError) return json({ error: fileError }, 400);
     lines.push({
       code: item.code,
       title: item.title,
@@ -247,6 +262,7 @@ async function handleCheckout(req, env) {
         .join(' · ')
         .slice(0, 300),
       amount: r.amount,
+      uploader_type: uploaderType,
       files: cleanFiles,
       purchase_excl: r._purchase,
       excl: r.price.excl,
@@ -271,7 +287,7 @@ async function handleCheckout(req, env) {
     history: [{ at: d.toISOString(), status: 'awaiting_payment' }],
   };
   order.callback_sig = await hmac(env, `probo:${id}`);
-  const thanksUrl = `${env.SITE_URL}/bedankt.html?order=${id}&t=${order.token}`;
+  const thanksUrl = `${thanksBase(env, body.return_url)}?order=${id}&t=${order.token}`;
   const mode = paymentMode(env);
 
   if (mode === 'transfer') {
@@ -315,6 +331,7 @@ async function handleCheckout(req, env) {
 
 async function sendToProbo(env, order) {
   if (order.probo_sent_at) return; // nooit twee keer bestellen
+  order.probo_attempts = (order.probo_attempts || 0) + 1;
   const payload = probo.buildOrderPayload(order, env);
   try {
     const res = await probo.placeOrder(env, payload);
@@ -414,7 +431,7 @@ async function handleAdminOrders(env) {
 async function handleMarkPaid(env, url) {
   const order = await getOrder(env, url.searchParams.get('order') || '');
   if (!order) return json({ error: 'Bestelling niet gevonden' }, 404);
-  if (order.status !== 'awaiting_transfer' && order.status !== 'supplier_error') {
+  if (!['awaiting_transfer', 'supplier_error', 'supplier_rejected'].includes(order.status)) {
     return json({ error: `Bestelling heeft status ${order.status}` }, 400);
   }
   if (!order.paid_at) {
@@ -423,6 +440,7 @@ async function handleMarkPaid(env, url) {
   }
   order.status = 'paid';
   delete order.probo_error;
+  delete order.probo_sent_at; // opnieuw versturen toegelaten
   await saveOrder(env, order);
   await sendToProbo(env, order);
   await saveOrder(env, order);
