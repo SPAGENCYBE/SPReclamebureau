@@ -33,7 +33,9 @@ export function proboFiles(line) {
         { uri: back.uri, side: 'back', amount: q },
       ];
     }
-    return [{ uri: files[0].uri, pages: [{ page: 1, side: 'front', amount: q }, { page: 2, side: 'back', amount: q }] }];
+    // Eén PDF met 2 pagina's; "swap" = klant wisselde voor- en achterkant om in het controlescherm.
+    const [pf, pb] = files[0].swap ? [2, 1] : [1, 2];
+    return [{ uri: files[0].uri, pages: [{ page: pf, side: 'front', amount: q }, { page: pb, side: 'back', amount: q }] }];
   }
   return [{ uri: files[0].uri, side: 'front', amount: q }];
 }

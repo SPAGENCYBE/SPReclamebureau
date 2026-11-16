@@ -264,6 +264,7 @@ async function handleCheckout(req, env) {
         key,
         name: str(f.name, 200),
         side: f.side === 'back' ? 'back' : 'front',
+        ...(f.swap ? { swap: true } : {}),
         uri: `${env.WORKER_URL}/api/files/${key}?sig=${sig}`,
       });
     }
