@@ -83,6 +83,7 @@
     state.options = [];
     state.stepNames = [];
     state.files = [];
+    state.uploader = null;
     renderCatalog();
     const box = $('#configurator');
     box.hidden = false;
@@ -96,6 +97,7 @@
   }
 
   async function reconfigure() {
+    if (state.uploader && state.uploader.options !== JSON.stringify(state.options)) state.uploader = null;
     const body = $('#cfgBody');
     body.classList.add('loading');
     showError($('#cfgMsg'), '');
@@ -185,13 +187,15 @@
       const u = (r.uploaders || [])[0];
       html += `<div class="price-box"><div><div class="muted">Prijs voor ${esc(r.amount)} stuk(s)</div><div class="big">${eur(r.price.incl)}</div><div class="muted">${eur(r.price.excl)} excl. btw</div></div></div>
         <div class="opt-group"><span class="opt-title">Drukbestand</span>
+          <div class="uploader-box" id="uploaderBox">${uploaderHtml(u)}</div>
+          <details class="simple-upload" ${state.files.length ? 'open' : ''}><summary>Of upload eenvoudig zonder controle</summary>
           <div class="file-hint">${u && u.type === 'double'
             ? '<strong>Dubbelzijdig:</strong> upload een <b>voorkant én achterkant</b> (2 bestanden), of <b>één PDF met 2 pagina\'s</b> (pagina 1 = voorkant, pagina 2 = achterkant).'
             : '<strong>Enkelzijdig:</strong> upload <b>één bestand</b> met je ontwerp.'}</div>
           <label class="dropzone" id="dropzone"><input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" multiple>
             <strong>Sleep je bestand hierheen</strong> of klik om te kiezen<br><small class="muted">PDF, JPG of PNG, max. ${state.settings.max_upload_mb || 100} MB${u ? ` · ${esc(u.width)} × ${esc(u.height)} cm${u.bleed && u.bleed[0] ? ` + ${esc(u.bleed[0])} cm afloop` : ''}${u.minimal_dpi ? ` · min. ${esc(u.minimal_dpi)} dpi` : ''}` : ''}</small>
           </label>
-          <ul class="file-list" id="fileList"></ul>
+          <ul class="file-list" id="fileList"></ul></details>
           <p class="muted" style="font-size:13px">Geen drukklaar bestand? <a class="accent" href="mailto:info@sp-agency.be?subject=Ontwerp%20voor%20webshopbestelling">Wij ontwerpen het voor je</a>.</p>
         </div>
         <button class="btn" type="button" id="addToCart">In winkelmand</button>`;
@@ -201,6 +205,55 @@
     $('#cfgBody').innerHTML = html;
     renderFiles();
   }
+
+  // ---------- Probo-uploader (bestandscontrole zoals bij Probo) ----------
+  function uploaderHtml(u) {
+    const up = state.uploader;
+    const fmt = u ? `${esc(u.width)} × ${esc(u.height)} cm${u.type === 'double' ? ', voor- en achterkant' : ''}` : '';
+    if (up && up.approved) {
+      return `<div class="up-ok">✓ <strong>Bestanden goedgekeurd</strong><span class="muted">Je ontwerp is gecontroleerd en klaar voor productie.</span></div>
+        <button type="button" class="btn outline" data-uploader="open">Bestanden aanpassen</button>`;
+    }
+    if (up && up.id) {
+      return `<div class="up-wait"><span class="spinner"></span> <strong>Wachten op je bestanden…</strong><span class="muted">Upload je ontwerp in het venster dat opende en klik daar op <b>Afronden</b>.</span></div>
+        <button type="button" class="btn outline" data-uploader="open">Uploadvenster opnieuw openen</button>`;
+    }
+    return `<p class="up-intro">Upload je ontwerp en controleer meteen hoe het gedrukt wordt${fmt ? ` (formaat <b>${fmt}</b>)` : ''}. Zo kan er niets fout gaan.</p>
+      <button type="button" class="btn" data-uploader="new">Bestanden uploaden en controleren</button>`;
+  }
+
+  function refreshUploaderBox() {
+    const box = $('#uploaderBox');
+    if (box) box.innerHTML = uploaderHtml(((state.result && state.result.uploaders) || [])[0]);
+  }
+
+  async function startUploader(win) {
+    try {
+      const r = await postJSON('/api/uploader', { code: state.product.code, options: state.options });
+      state.uploader = { id: r.id, token: r.token, url: r.url, approved: false, options: JSON.stringify(state.options) };
+      if (win && !win.closed) win.location.href = r.url; else window.open(r.url, '_blank');
+      refreshUploaderBox();
+      pollUploader();
+    } catch (e) {
+      if (win && !win.closed) win.close();
+      showError($('#cfgMsg'), e.message);
+    }
+  }
+
+  let pollTimer = null;
+  async function pollUploader() {
+    clearTimeout(pollTimer);
+    const up = state.uploader;
+    if (!up || up.approved) return;
+    try {
+      const r = await api(`/api/uploader/${encodeURIComponent(up.id)}?t=${encodeURIComponent(up.token)}`);
+      if (state.uploader !== up) return;
+      if (r.approved) { up.approved = true; refreshUploaderBox(); return; }
+      if (r.status === 'rejected') { state.uploader = null; refreshUploaderBox(); showError($('#cfgMsg'), r.message || 'Je bestanden zijn afgekeurd. Probeer opnieuw.'); return; }
+    } catch { /* opnieuw proberen */ }
+    pollTimer = setTimeout(pollUploader, 3000);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state.uploader && !state.uploader.approved) pollUploader(); });
 
   function renderFiles() {
     const ul = $('#fileList');
@@ -232,10 +285,12 @@
 
   function addToCart() {
     const r = state.result;
-    if (!state.files.length) return showError($('#cfgMsg'), 'Upload eerst je drukbestand.');
+    const viaUploader = state.uploader && state.uploader.approved;
+    if (state.uploader && !state.uploader.approved && !state.files.length) return showError($('#cfgMsg'), 'Rond eerst het uploaden af: klik in het uploadvenster op "Afronden".');
+    if (!viaUploader && !state.files.length) return showError($('#cfgMsg'), 'Upload eerst je drukbestand.');
     const type = ((r.uploaders || [])[0] || {}).type || 'single';
     const isPdf = (f) => /\.pdf$/i.test(f.name || '');
-    if (type === 'double') {
+    if (viaUploader) { /* gecontroleerd door de uploader */ } else if (type === 'double') {
       const fronts = state.files.filter((f) => f.side !== 'back').length, backs = state.files.filter((f) => f.side === 'back').length;
       if (!((fronts === 1 && backs === 1) || (state.files.length === 1 && isPdf(state.files[0])))) {
         return showError($('#cfgMsg'), 'Dit product wordt aan twee kanten bedrukt. Upload een voorkant én een achterkant, of één PDF met 2 pagina\'s.');
@@ -247,12 +302,13 @@
     const summary = (r.selected_options || []).map((o) => (o.value !== undefined && o.value !== null && o.value !== '' ? `${o.name || pretty(o.code)}: ${o.value}` : o.name || pretty(o.code))).join(' · ');
     state.cart.push({
       code: state.product.code, title: state.product.title, options: state.options, summary,
-      files: state.files.map((f) => ({ key: f.key, name: f.name, side: f.side })),
+      files: viaUploader ? [] : state.files.map((f) => ({ key: f.key, name: f.name, side: f.side })),
+      uploader: viaUploader ? { id: state.uploader.id, token: state.uploader.token } : null,
       excl: r.price.excl, incl: r.price.incl,
     });
     store.set(state.cart);
     renderCart();
-    state.options = []; state.stepNames = []; state.files = [];
+    state.options = []; state.stepNames = []; state.files = []; state.uploader = null;
     $('#configurator').hidden = true;
     $('#catalogWrap').hidden = false;
     state.product = null;
@@ -263,7 +319,7 @@
   function closeConfigurator() {
     $('#configurator').hidden = true;
     $('#catalogWrap').hidden = false;
-    state.product = null; state.options = []; state.stepNames = []; state.files = [];
+    state.product = null; state.options = []; state.stepNames = []; state.files = []; state.uploader = null;
     renderCatalog();
     $('#shopTop').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -303,7 +359,7 @@
     showError($('#checkoutMsg'), '');
     try {
       const r = await postJSON('/api/checkout', {
-        items: state.cart.map(({ code, options, files }) => ({ code, options, files })),
+        items: state.cart.map(({ code, options, files, uploader }) => ({ code, options, files, uploader })),
         customer: { email: g('email'), phone: g('phone'), vat_number: g('vat_number') },
         address: { company: g('company'), first_name: g('first_name'), last_name: g('last_name'), street: g('street'), house_number: g('house_number'), addition: g('addition'), postal_code: g('postal_code'), city: g('city'), country: g('country') },
         remarks: g('remarks'),
@@ -330,6 +386,8 @@
     else if (t.dataset.undo !== undefined) { const n = Number(t.dataset.undo); state.options = state.options.slice(0, n); state.stepNames = state.stepNames.slice(0, n); state.files = []; reconfigure(); }
     else if (t.dataset.rmfile !== undefined) { state.files.splice(Number(t.dataset.rmfile), 1); renderFiles(); }
     else if (t.dataset.rm !== undefined) { state.cart.splice(Number(t.dataset.rm), 1); store.set(state.cart); renderCart(); }
+    else if (t.dataset.uploader === 'new') { const w = window.open('', '_blank'); if (w) w.document.write('<p style="font-family:sans-serif;padding:24px">Uploadvenster wordt geopend…</p>'); startUploader(w); }
+    else if (t.dataset.uploader === 'open' && state.uploader) { window.open(state.uploader.url, '_blank'); if (!state.uploader.approved) pollUploader(); else { state.uploader.approved = false; refreshUploaderBox(); pollUploader(); } }
     else if (t.id === 'addToCart') addToCart();
     else if (t.id === 'cfgBack') { closeConfigurator(); }
     else if (t.id === 'toCheckout') { $('#checkout').hidden = false; $('#checkout').scrollIntoView({ behavior: 'smooth' }); }

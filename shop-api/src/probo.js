@@ -92,7 +92,7 @@ export function buildOrderPayload(order, env) {
       id: i + 1,
       code: l.code,
       options: l.options,
-      files: proboFiles(l),
+      ...(l.uploader ? { uploaders: [{ id: l.uploader.id, external_id: l.uploader.external_id }] } : { files: proboFiles(l) }),
     })),
   };
 }
@@ -100,6 +100,10 @@ export function buildOrderPayload(order, env) {
 /** Beheer: ruwe GET of configure-antwoord, om velden te onderzoeken. */
 export const rawGet = (env, path) => call(env, 'GET', path);
 export const rawConfigure = (env, code, options) => call(env, 'POST', '/products/configure', { products: [{ code, options: options || [] }] });
+
+/** Whitelabel-uploader: sessie voor een volledig samengesteld product (calculation_id uit /products/configure). */
+export const createUploader = (env, calculationId, callbackUrl) =>
+  call(env, 'POST', '/products/uploader/create', { calculation_id: calculationId, callback_url: callbackUrl, language: 'nl' });
 
 export const getProduct = (env, code) => call(env, 'GET', `/products/product/${encodeURIComponent(code)}`);
 

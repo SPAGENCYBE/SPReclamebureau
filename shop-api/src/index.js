@@ -251,8 +251,18 @@ async function handleCheckout(req, env) {
         uri: `${env.WORKER_URL}/api/files/${key}?sig=${sig}`,
       });
     }
-    const fileError = checkFiles(uploaderType, cleanFiles, item.title);
-    if (fileError) return json({ error: fileError }, 400);
+    let uploader = null;
+    if (it.uploader && it.uploader.id) {
+      const s = await getUploader(env, it.uploader.id);
+      if (!s || it.uploader.token !== (await hmac(env, `uploader:${s.id}`)) || s.code !== item.code || JSON.stringify(s.options) !== JSON.stringify(options)) {
+        return json({ error: `De bestanden voor ${item.title} horen niet bij deze samenstelling. Upload opnieuw.` }, 400);
+      }
+      if (s.status === 'rejected') return json({ error: `De bestanden voor ${item.title} zijn afgekeurd. Upload opnieuw.` }, 400);
+      uploader = { id: s.id, external_id: s.external_id, status: s.status };
+    } else {
+      const fileError = checkFiles(uploaderType, cleanFiles, item.title);
+      if (fileError) return json({ error: fileError }, 400);
+    }
     lines.push({
       code: item.code,
       title: item.title,
@@ -263,6 +273,7 @@ async function handleCheckout(req, env) {
         .slice(0, 300),
       amount: r.amount,
       uploader_type: uploaderType,
+      uploader,
       files: cleanFiles,
       purchase_excl: r._purchase,
       excl: r.price.excl,
@@ -456,6 +467,58 @@ async function withThumbs(env, catalog) {
   };
 }
 
+// ---------- whitelabel-uploader van Probo ----------
+const UPLOADER_OK = /approv|confirm|complet|accept|done|finish|ok/i;
+
+async function handleUploaderCreate(req, env) {
+  const body = await req.json().catch(() => null);
+  const item = body && (await findCatalogItem(env, body.code));
+  const options = body && cleanOptions(body.options || []);
+  if (!item || !options) return json({ error: 'Ongeldig product' }, 400);
+  const { product, calculation_id } = await probo.configure(env, item.code, options);
+  if (!product.can_order || !calculation_id) return json({ error: 'Stel het product eerst volledig samen' }, 400);
+  const res = await probo.createUploader(env, calculation_id, `${env.WORKER_URL}/api/probo/uploader-callback?sig=${await hmac(env, 'uploader-callback')}`);
+  const u = res && res.uploaders && res.uploaders[0];
+  if (!u || !u.url) throw new probo.ProboError('Probo gaf geen uploader terug', 502, res);
+  const session = { id: String(u.id), external_id: String(u.external_id), url: u.url, code: item.code, options, status: 'open', created_at: new Date().toISOString() };
+  await env.ORDERS.put(`uploader:${session.id}`, JSON.stringify(session), { expirationTtl: 60 * 60 * 24 * 30 });
+  return json({ id: session.id, url: session.url, token: await hmac(env, `uploader:${session.id}`) });
+}
+
+async function getUploader(env, id) {
+  if (!/^\d{1,15}$/.test(String(id || ''))) return null;
+  const raw = await env.ORDERS.get(`uploader:${id}`);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function handleUploaderStatus(env, id, url) {
+  const s = await getUploader(env, id);
+  if (!s || url.searchParams.get('t') !== (await hmac(env, `uploader:${id}`))) return json({ error: 'Niet gevonden' }, 404);
+  return json({ id: s.id, status: s.status, approved: s.status === 'approved', message: s.message || null });
+}
+
+async function handleUploaderCallback(req, env, url) {
+  if (url.searchParams.get('sig') !== (await hmac(env, 'uploader-callback'))) return json({ ok: false }, 403);
+  const data = await req.json().catch(() => ({}));
+  const ids = new Set();
+  const collect = (o) => {
+    if (!o || typeof o !== 'object') return;
+    for (const k of ['id', 'uploader_id']) if (o[k] != null) ids.add(String(o[k]));
+    for (const v of Object.values(o)) if (v && typeof v === 'object') collect(v);
+  };
+  collect(data);
+  const statusText = String(data.status || (data.uploader && data.uploader.status) || data.message || '');
+  for (const id of ids) {
+    const s = await getUploader(env, id);
+    if (!s) continue;
+    s.callbacks = [...(s.callbacks || []), { at: new Date().toISOString(), data }].slice(-5);
+    s.status = /reject|declin|cancel|fail|error/i.test(statusText) ? 'rejected' : UPLOADER_OK.test(statusText) ? 'approved' : s.status;
+    s.message = String(data.message || '').slice(0, 300) || null;
+    await env.ORDERS.put(`uploader:${s.id}`, JSON.stringify(s), { expirationTtl: 60 * 60 * 24 * 30 });
+  }
+  return json({ ok: true });
+}
+
 // ---------- router ----------
 
 export default {
@@ -473,6 +536,9 @@ export default {
       else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await withThumbs(env, await getCatalog(env))), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
+      else if (p === '/api/uploader' && req.method === 'POST') res = await handleUploaderCreate(req, env);
+      else if (p.startsWith('/api/uploader/') && req.method === 'GET') res = await handleUploaderStatus(env, p.slice(14), url);
+      else if (p === '/api/probo/uploader-callback' && req.method === 'POST') return await handleUploaderCallback(req, env, url);
       else if (p.startsWith('/api/img/') && req.method === 'GET') return await serveThumb(env, p.slice(9));
       else if (p === '/api/admin/fill-images') res = isAdmin(env, url) ? json(await fillImages(env, Math.min(Number(url.searchParams.get('limit')) || 14, 15))) : json({ error: 'Geen toegang' }, 403);
       else if (p.startsWith('/api/files/') && req.method === 'GET') return await handleFile(env, p.slice(11), url);

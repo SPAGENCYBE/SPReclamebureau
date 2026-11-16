@@ -164,3 +164,13 @@ body[data-theme="light"] .product-card .pc-icon{background:radial-gradient(circl
 @media(max-width:640px){.cfg-head{flex-direction:column;align-items:flex-start}.cfg-photo{width:100%;height:auto;aspect-ratio:16/10}}
 .file-hint{margin:0 0 12px;padding:12px 14px;border-radius:12px;background:rgba(244,91,0,.08);border:1px solid rgba(244,91,0,.25);font-size:14px;line-height:1.5}
 .file-hint b{color:var(--orange)}
+
+/* Probo-uploader */
+.uploader-box{padding:18px;border-radius:16px;border:1px solid var(--s-line);background:var(--s-soft);margin-bottom:12px}
+.uploader-box .btn{margin-top:4px}
+.up-intro{margin:0 0 12px;font-size:15px;line-height:1.5}
+.up-ok,.up-wait{display:flex;flex-direction:column;gap:2px;margin-bottom:12px;font-size:15px}
+.up-ok{color:#16a34a}.up-ok .muted,.up-wait .muted{font-size:14px;color:var(--s-muted)}
+.up-ok strong{font-size:16px}
+.simple-upload{margin:6px 0 10px}
+.simple-upload summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--s-muted);margin-bottom:10px}
