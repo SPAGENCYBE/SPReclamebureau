@@ -317,7 +317,7 @@
     if (slot.error) return { fit: 'none', msgs: [{ lvl: 'err', text: slot.error }] };
     if (!info) return { fit: 'none', msgs: [] };
     if (info.kind === 'bad') return { fit: 'none', msgs: [{ lvl: 'err', text: 'Dit bestandstype kunnen we niet drukken. Gebruik PDF, JPG of PNG.' }] };
-    if (info.kind === 'unknown') return { fit: 'bleed', msgs: [{ lvl: 'warn', text: 'We konden geen voorbeeld maken van dit bestand. Controleer zelf of formaat en afloop kloppen.' }] };
+    if (info.kind === 'unknown') return { fit: 'none', msgs: [{ lvl: 'warn', text: 'We konden geen voorbeeld maken van dit bestand. Controleer zelf of formaat en afloop kloppen.' }] };
 
     const near = (a, x) => Math.abs(a - x) <= Math.max(0.15, x * 0.01);
     const ratioNear = (r, x) => Math.abs(r - x) / x <= 0.02;
@@ -386,7 +386,7 @@
     const ratio = g.B[0] / g.B[1];
     const w = Math.round(Math.min(340, 300 * ratio));
     return `<div class="pv-frame" style="aspect-ratio:${g.B[0]}/${g.B[1]};width:min(100%,${w}px)">
-      ${img}${!src && !slot.error ? '<div class="pv-busy"><span class="spinner"></span> Bestand lezen…</div>' : ''}
+      ${img}${!slot.info && !slot.error ? '<div class="pv-busy"><span class="spinner"></span> Bestand lezen…</div>' : ''}
       <div class="pv-trim" style="${trimStyle}"><div class="pv-safe" style="${safeStyle}"></div></div>
     </div>`;
   }
@@ -451,8 +451,9 @@
       const r = await api('/api/upload', { method: 'POST', body: fd });
       slot.key = r.key;
     })().catch((e) => { slot.error = e.message || 'Opladen mislukt. Probeer opnieuw.'; }).finally(() => { slot.uploading = false; renderCheck(); });
+    const timed = () => Promise.race([analyze(file), new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 25000))]);
     try {
-      slot.info = await analyze(file);
+      slot.info = await timed().catch(() => timed());
     } catch {
       slot.info = { kind: 'unknown', pages: 1, sizes: [null], previews: [] };
     }
