@@ -267,13 +267,26 @@ console.log('Bestandsregels + bedankpagina ✔');
   let html = await (await call(`/api/order/${myOrder}/invoice?t=${ord.token}`)).text();
   assert.match(html, /Bestelbevestiging/); assert.doesNotMatch(html, /Factuur 20/);
   assert.equal((await call(`/api/order/${myOrder}/invoice?t=fout`)).status, 404);
-  env.SELLER_VAT = 'BE0999999999';
+  env.SELLER_VAT = 'BE0999999999'; env.SELLER_LEGAL = 'Testpersoon';
+  // testbestelling: nooit een factuurnummer
   r = await (await authed('/api/checkout', tok, { method: 'POST', body: JSON.stringify(checkout) })).json();
+  assert.equal(JSON.parse(kv.get('order:' + r.order_id)).invoice_no, undefined, 'geen factuur voor testbestelling');
+  // echte bestelling (overschrijving, Probo productie) -> factuur na betaling
+  env.PAYMENT_MODE = 'transfer'; env.BANK_IBAN = 'BE68 5390 0754 7034'; env.PROBO_ORDER_TYPE = 'production';
+  r = await (await authed('/api/checkout', tok, { method: 'POST', body: JSON.stringify(checkout) })).json();
+  await call(`/api/admin/mark-paid?key=adm&order=${r.order_id}`, { method: 'POST' });
   const o2 = JSON.parse(kv.get('order:' + r.order_id));
   assert.match(o2.invoice_no, /^\d{4}-0001$/);
   html = await (await call(`/api/order/${r.order_id}/invoice?t=${o2.token}`)).text();
-  assert.match(html, /Factuur \d{4}-0001/); assert.match(html, /BE0999999999/);
-  delete env.SELLER_VAT;
+  assert.match(html, /Factuur \d{4}-0001/); assert.match(html, /BE0999999999/); assert.match(html, /Testpersoon/);
+  // nieuwe onderneming (CommV): nummering begint opnieuw, oude factuur behoudt oude gegevens
+  env.SELLER_VAT = 'BE0888888888'; env.SELLER_LEGAL = 'SP CommV';
+  r = await (await authed('/api/checkout', tok, { method: 'POST', body: JSON.stringify(checkout) })).json();
+  await call(`/api/admin/mark-paid?key=adm&order=${r.order_id}`, { method: 'POST' });
+  assert.match(JSON.parse(kv.get('order:' + r.order_id)).invoice_no, /^\d{4}-0001$/);
+  html = await (await call(`/api/order/${o2.id}/invoice?t=${o2.token}`)).text();
+  assert.match(html, /BE0999999999/); assert.doesNotMatch(html, /BE0888888888/);
+  delete env.SELLER_VAT; delete env.SELLER_LEGAL; env.PAYMENT_MODE = 'test'; env.PROBO_ORDER_TYPE = 'test';
 
   // inloggen met code
   assert.equal((await post('/api/auth/code', { email: 'nieuw@example.be' })).status, 503, 'zonder mail geen code');

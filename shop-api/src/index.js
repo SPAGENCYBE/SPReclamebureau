@@ -132,11 +132,16 @@ async function getOrder(env, id) {
 
 async function saveOrder(env, order) {
   order.updated_at = new Date().toISOString();
-  if (order.paid_at && !order.invoice_no && env.SELLER_VAT) {
-    // Doorlopende factuurnummering per jaar: 2026-0001, 2026-0002, ...
+  const isTest = (order.payment && order.payment.method === 'test') || env.PROBO_ORDER_TYPE !== 'production';
+  if (order.paid_at && !order.invoice_no && env.SELLER_VAT && !isTest) {
+    // Doorlopende factuurnummering per jaar en per onderneming: 2026-0001, 2026-0002, ...
+    // Bij een nieuwe onderneming (ander btw-nummer, bv. de CommV) begint de nummering opnieuw.
     const year = order.paid_at.slice(0, 4);
-    const n = Number((await env.ORDERS.get(`invoice:counter:${year}`)) || 0) + 1;
-    await env.ORDERS.put(`invoice:counter:${year}`, String(n));
+    const ckey = `invoice:counter:${String(env.SELLER_VAT).replace(/\D/g, '')}:${year}`;
+    const n = Number((await env.ORDERS.get(ckey)) || 0) + 1;
+    await env.ORDERS.put(ckey, String(n));
+    order.invoice_vat = env.SELLER_VAT;
+    order.invoice_seller = { name: env.SELLER_NAME, legal: env.SELLER_LEGAL, address: env.SELLER_ADDRESS, vat: env.SELLER_VAT };
     order.invoice_no = `${year}-${String(n).padStart(4, '0')}`;
     order.invoice_date = order.paid_at.slice(0, 10);
   }

@@ -6,8 +6,11 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const eur = (n) => '€ ' + Number(n || 0).toFixed(2).replace('.', ',');
 const date = (iso) => (iso ? new Date(iso).toLocaleDateString('nl-BE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');
 
-export function invoiceHtml(order, env) {
+export function invoiceHtml(order, envIn) {
+  // Een uitgereikte factuur toont altijd de verkoper van op het moment van facturatie (ook na de overstap naar de CommV).
+  const env = order.invoice_seller ? { ...envIn, SELLER_NAME: order.invoice_seller.name, SELLER_LEGAL: order.invoice_seller.legal, SELLER_ADDRESS: order.invoice_seller.address, SELLER_VAT: order.invoice_seller.vat } : envIn;
   const isInvoice = !!(env.SELLER_VAT && order.invoice_no);
+  const who = `${esc(env.SELLER_NAME || 'SP Reclamebureau')}${env.SELLER_LEGAL ? `<br>${esc(env.SELLER_LEGAL)}` : ''}`;
   const title = isInvoice ? `Factuur ${order.invoice_no}` : `Bestelbevestiging ${order.id}`;
   const a = order.address;
   const c = order.customer;
@@ -36,7 +39,7 @@ td{border-bottom:1px solid #e5e7eb;padding:10px 6px;vertical-align:top}td small{
 <div class="page">
   <div class="top">
     <div><div class="brand">SP <span>Reclamebureau</span></div><div class="muted" style="font-size:13px">prints &amp; designs</div></div>
-    <div style="font-size:13px;line-height:1.55" class="r">${esc(env.SELLER_NAME || 'SP Reclamebureau')}<br>${esc(env.SELLER_ADDRESS || '')}${env.SELLER_VAT ? `<br>BTW ${esc(env.SELLER_VAT)}` : ''}<br>${esc(env.SELLER_EMAIL || 'info@sp-agency.be')}</div>
+    <div style="font-size:13px;line-height:1.55" class="r">${who}<br>${esc(env.SELLER_ADDRESS || '')}${env.SELLER_VAT ? `<br>BTW ${esc(env.SELLER_VAT)}` : ''}<br>${esc(env.SELLER_EMAIL || 'info@sp-agency.be')}</div>
   </div>
   <h1>${esc(title)}</h1>
   <div class="muted" style="font-size:14px">${isInvoice ? `Factuurdatum: ${date(order.invoice_date)} · ` : ''}Bestelnummer: ${esc(order.id)} · Besteld op ${date(order.created_at)}</div>
@@ -55,7 +58,7 @@ td{border-bottom:1px solid #e5e7eb;padding:10px 6px;vertical-align:top}td small{
   </div>
   ${order.paid_at ? `<p style="font-size:14px;margin-top:18px">Betaald op ${date(order.paid_at)}.</p>` : `<p style="font-size:14px;margin-top:18px">Nog te betalen.</p>`}
   ${isInvoice ? '' : '<div class="note">Dit is een <strong>bestelbevestiging</strong>, geen factuur. De factuur volgt na verwerking van je bestelling.</div>'}
-  <div class="foot">${esc(env.SELLER_NAME || 'SP Reclamebureau')}${env.SELLER_VAT ? ' · BTW ' + esc(env.SELLER_VAT) : ''}${env.SELLER_IBAN ? ' · IBAN ' + esc(env.SELLER_IBAN) : ''} · spreclamebureau.be</div>
+  <div class="foot">${esc(env.SELLER_NAME || 'SP Reclamebureau')}${env.SELLER_LEGAL ? ' (' + esc(env.SELLER_LEGAL) + ')' : ''}${env.SELLER_VAT ? ' · BTW ' + esc(env.SELLER_VAT) : ''}${env.SELLER_IBAN ? ' · IBAN ' + esc(env.SELLER_IBAN) : ''} · spreclamebureau.be</div>
 </div>
 <button class="print" onclick="window.print()">Opslaan als PDF / afdrukken</button>
 </body></html>`;
