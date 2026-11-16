@@ -302,7 +302,7 @@
       c.width = Math.round(vp.width); c.height = Math.round(vp.height);
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      await page.render({ canvasContext: ctx, viewport: vp, intent: 'print' }).promise; // 'print': werkt ook in een tabblad op de achtergrond
       info.previews.push(c.toDataURL('image/jpeg', 0.85));
     }
     doc.destroy();
