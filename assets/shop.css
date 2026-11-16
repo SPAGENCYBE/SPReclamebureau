@@ -137,15 +137,17 @@ body[data-theme="light"] .product-card .pc-icon{background:radial-gradient(circl
 .oc-body{display:flex;flex-direction:column;gap:4px;padding:12px 14px 14px}
 .oc-body strong{font-size:15px;line-height:1.25}
 .oc-body small{font-size:13px;line-height:1.45;color:var(--s-muted)}
-.opt-badge{position:absolute;top:10px;left:10px;z-index:1;padding:4px 9px;border-radius:7px;font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;background:var(--orange);color:#fff;box-shadow:0 6px 14px rgba(0,0,0,.18)}
+.opt-badge{position:static;align-self:flex-start;margin-bottom:4px;padding:4px 9px;border-radius:7px;font-size:11px;font-weight:900;letter-spacing:.04em;text-transform:uppercase;background:var(--orange);color:#fff;box-shadow:0 6px 14px rgba(0,0,0,.18)}
 .opt-badge.green{background:#16a34a}
 .opt-free{cursor:default}
 .opt-free:hover{transform:none}
-.opt-free .opt-badge{position:static;align-self:flex-start;margin:12px 14px 0}
-.oc-free{display:flex;gap:8px;margin-top:8px}
-.oc-free input{flex:1;min-width:0;min-height:40px;border-radius:10px;border:1px solid var(--s-line);background:var(--s-input);color:var(--s-text);padding:6px 10px;font:inherit}
-.oc-free .btn{min-height:40px;padding:8px 14px}
+.oc-free{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.oc-free input{width:100%!important;min-width:0;min-height:46px;border-radius:10px;border:1px solid var(--s-line);background:var(--s-input);color:var(--s-text);padding:8px 12px;font:inherit;font-size:16px!important;font-weight:700}
+.oc-free input::placeholder{color:var(--s-muted);font-weight:500}
+.oc-free .btn{width:100%!important;min-width:0!important;min-height:44px;padding:8px 14px}
 @media(max-width:640px){
   .opt-cards{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:72%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}
   .opt-card{scroll-snap-align:start}
 }
+.oc-free input::-webkit-outer-spin-button,.oc-free input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.oc-free input{-moz-appearance:textfield;appearance:textfield}

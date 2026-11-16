@@ -163,17 +163,17 @@
         if (INPUT_TYPES.includes(k.type_code)) {
           // Vrij getal binnen een keuzegroep, bv. "Gewenste oplage"
           const min = k.min_value && Number(k.min_value) > 0 ? k.min_value : 1;
-          html += `<form class="opt-card opt-free" data-free="${esc(k.code)}" data-group="${esc(gname)}">${badge}
-            <div class="oc-body"><strong>${esc(k.name || pretty(k.code))}</strong>${k.description ? `<small>${esc(k.description)}</small>` : ''}
-            <div class="oc-free"><input type="number" name="v" min="${esc(min)}"${k.max_value ? ` max="${esc(k.max_value)}"` : ''} step="${esc(k.step_size || 1)}" required placeholder="Aantal">
+          html += `<form class="opt-card opt-free" data-free="${esc(k.code)}" data-group="${esc(gname)}">
+            <div class="oc-body">${badge}<strong>${esc(k.name || pretty(k.code))}</strong>${k.description ? `<small>${esc(k.description)}</small>` : ''}
+            <div class="oc-free"><input type="number" name="v" min="${esc(min)}"${k.max_value ? ` max="${esc(k.max_value)}"` : ''} step="${esc(k.step_size || 1)}" required inputmode="numeric" placeholder="Typ je aantal">
             <button type="submit" class="btn">OK</button></div></div></form>`;
           continue;
         }
         const img = k.images && k.images[0] && k.images[0].url;
         const photo = img && /\.(jpe?g|png|webp)(\?|$)/i.test(img);
         html += `<button type="button" class="opt-card${photo ? ' has-photo' : ''}" data-opt="${esc(k.code)}" data-group="${esc(gname)}">
-          ${badge}${img ? `<span class="oc-img"><img src="${esc(img)}" alt="" loading="lazy"></span>` : ''}
-          <span class="oc-body"><strong>${esc(k.name || pretty(k.code))}</strong>${k.description ? `<small>${esc(k.description)}</small>` : ''}</span>
+          ${img ? `<span class="oc-img"><img src="${esc(img)}" alt="" loading="lazy"></span>` : ''}
+          <span class="oc-body">${badge}<strong>${esc(k.name || pretty(k.code))}</strong>${k.description ? `<small>${esc(k.description)}</small>` : ''}</span>
         </button>`;
       }
       html += '</div></div>';
