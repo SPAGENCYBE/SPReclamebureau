@@ -62,11 +62,12 @@ const post = (path, data) => call(path, { method: 'POST', body: JSON.stringify(d
 let r = await (await call('/api/products')).json();
 const codes = r.products.map((p) => p.code);
 assert.deepEqual(codes.slice(0, 4), ['flyers', 'banner', 'dibond', 'vinyl-sticker'], 'uitgelichte producten eerst, in vaste volgorde');
+assert.deepEqual(r.categories.map((c) => [c.key, c.count]), [['drukwerk', 1], ['stickers', 1], ['borden', 1], ['spandoeken', 1], ['vlaggen', 1], ['montage', 1]]);
 assert.ok(codes.includes('tiewraps') && codes.includes('pole-flag'));
 assert.ok(!codes.includes('old-thing') && !codes.includes('pvc-sheet'), 'inactief en materialen niet tonen');
 const cat = Object.fromEntries(r.products.map((p) => [p.code, p.category]));
-assert.equal(cat.tiewraps, 'Accessoires'); assert.equal(cat['pole-flag'], 'Vlaggen'); assert.equal(cat.flyers, 'Drukwerk');
-assert.equal(cat['vinyl-sticker'], 'Stickers & folie'); assert.equal(cat.dibond, 'Borden & platen'); assert.equal(cat.banner, 'Spandoeken & banners');
+assert.equal(cat.tiewraps, 'Montage & toebehoren'); assert.equal(cat['pole-flag'], 'Vlaggen & beachflags'); assert.equal(cat.flyers, 'Drukwerk');
+assert.equal(cat['vinyl-sticker'], 'Stickers & folie'); assert.equal(cat.dibond, 'Borden & platen'); assert.equal(cat.banner, 'Spandoeken & doeken');
 await call('/api/products');
 assert.equal(catalogCalls, 2, 'catalogus wordt bewaard, niet telkens opnieuw opgehaald');
 

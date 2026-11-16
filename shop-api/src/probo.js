@@ -94,4 +94,8 @@ export function buildOrderPayload(order, env) {
   };
 }
 
+/** Beheer: ruwe GET of configure-antwoord, om velden te onderzoeken. */
+export const rawGet = (env, path) => call(env, 'GET', path);
+export const rawConfigure = (env, code, options) => call(env, 'POST', '/products/configure', { products: [{ code, options: options || [] }] });
+
 export const placeOrder = (env, payload) => call(env, 'POST', '/order', payload);

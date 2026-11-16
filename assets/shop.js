@@ -12,8 +12,22 @@
     set(v) { try { localStorage.setItem('sp-cart', JSON.stringify(v)); } catch { /* privémodus */ } },
   };
 
+
+  const ICONS = {
+    drukwerk: '<path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4"/><path d="M10 12h6M10 16h6"/><path d="M4 6v15h12"/>',
+    posters: '<rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="m4 16 5-5 4 4 2-2 5 5"/><circle cx="15.5" cy="8" r="1.6"/>',
+    stickers: '<path d="M5 4h14v9l-6 7H5z"/><path d="M19 13h-5a1 1 0 0 0-1 1v6"/><path d="M8.5 9.5h.01M14.5 9.5h.01M9 13c1.6 1.4 4.4 1.4 6 0"/>',
+    borden: '<rect x="3" y="4" width="18" height="10" rx="1.5"/><path d="M8 14v7M16 14v7M7 8h10M7 11h6"/>',
+    spandoeken: '<path d="M2 6h20v9H2z"/><circle cx="4.5" cy="8" r=".8"/><circle cx="19.5" cy="8" r=".8"/><circle cx="4.5" cy="13" r=".8"/><circle cx="19.5" cy="13" r=".8"/><path d="M8 10.5h8"/><path d="M2 6 1 4M22 6l1-2"/>',
+    vlaggen: '<path d="M6 21V3"/><path d="M6 4c4-2 7 3 12 1v8c-5 2-8-3-12-1"/>',
+    beurs: '<rect x="7" y="2" width="10" height="16" rx="1"/><path d="M5 21h14M12 18v3M10 7h4M10 10h4"/>',
+    interieur: '<path d="M4 11V8a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v3"/><path d="M2 12a2 2 0 0 1 4 0v2h12v-2a2 2 0 0 1 4 0v5H2z"/><path d="M5 17v3M19 17v3"/>',
+    promo: '<path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+    montage: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.2L3 17.8 6.2 21l6.3-6.3a4 4 0 0 0 5.2-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+  };
+  const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k] || ICONS.promo}</svg>`;
   const PAGE = 24;
-  const state = { products: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', q: '', shown: PAGE, product: null, options: [], result: null, files: [], cart: store.get() };
+  const state = { products: [], categories: [], settings: { shipping_excl: 9.95, vat: 0.21 }, cat: 'Alles', q: '', shown: PAGE, product: null, options: [], result: null, files: [], cart: store.get() };
 
   async function api(path, opts) {
     const res = await fetch(API + path, opts);
@@ -26,20 +40,41 @@
   function showError(el, msg) { el.innerHTML = msg ? `<div class="msg err">${esc(msg)}</div>` : ''; }
 
   // ---------- catalogus ----------
+  function productCard(p) {
+    return `<button type="button" class="product-card ${state.product?.code === p.code ? 'active' : ''}" data-code="${esc(p.code)}">
+        <div class="pc-icon">${icon(p.category_key)}</div>
+        <div class="pc-body">${state.cat === 'Alles' || state.q ? `<div class="pc-cat">${esc(p.category)}</div>` : ''}<h3>${esc(p.title)}</h3>${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}</div>
+      </button>`;
+  }
+
   function renderCatalog() {
-    const counts = {};
-    for (const p of state.products) counts[p.category] = (counts[p.category] || 0) + 1;
-    const cats = ['Alles', ...Object.keys(counts).sort((a, b) => (a === 'Overige') - (b === 'Overige') || (a === 'Accessoires') - (b === 'Accessoires') || a.localeCompare(b, 'nl'))];
-    $('#catFilters').innerHTML = cats.map((c) => `<button type="button" class="${c === state.cat ? 'active' : ''}" data-cat="${esc(c)}">${esc(c)} <span class="muted" style="font-weight:600">${c === 'Alles' ? state.products.length : counts[c]}</span></button>`).join('');
     const q = state.q.toLowerCase();
-    const list = state.products.filter((p) => (state.cat === 'Alles' || p.category === state.cat) && (!q || `${p.title} ${p.description} ${p.category}`.toLowerCase().includes(q)));
+    const grid = $('#productGrid'), more = $('#moreWrap'), head = $('#catHead');
+    // Startscherm: categorieën + populaire producten
+    if (state.cat === 'Alles' && !q) {
+      head.innerHTML = '';
+      $('#catTiles').innerHTML = state.categories.map((c) => `
+        <button type="button" class="cat-tile" data-cat="${esc(c.key)}">
+          <span class="ct-icon">${icon(c.key)}</span>
+          <span class="ct-text"><strong>${esc(c.name)}</strong><small>${esc(c.blurb)}</small></span>
+          <span class="ct-count">${c.count}</span>
+        </button>`).join('');
+      $('#catTiles').hidden = false;
+      const featured = state.products.filter((p) => p.featured);
+      grid.innerHTML = featured.map(productCard).join('');
+      $('#gridTitle').textContent = 'Populair';
+      more.innerHTML = '';
+      return;
+    }
+    $('#catTiles').hidden = true;
+    const cat = state.categories.find((c) => c.key === state.cat);
+    const list = state.products.filter((p) => (q ? `${p.title} ${p.description} ${p.category}`.toLowerCase().includes(q) : p.category_key === state.cat));
+    head.innerHTML = `<button type="button" class="back-link" data-cat="Alles">← Alle categorieën</button>`
+      + (cat && !q ? `<div class="cat-head-title"><span class="ct-icon">${icon(cat.key)}</span><div><h3>${esc(cat.name)}</h3><p class="muted">${esc(cat.blurb)}</p></div></div>` : '');
+    $('#gridTitle').textContent = q ? `${list.length} resultaten voor “${state.q}”` : `${list.length} producten`;
     const visible = list.slice(0, state.shown);
-    $('#productGrid').innerHTML = visible.length ? visible.map((p) => `
-      <button type="button" class="product-card ${state.product?.code === p.code ? 'active' : ''}" data-code="${esc(p.code)}">
-        <img src="${esc(p.image)}" alt="" loading="lazy">
-        <div class="pc-body"><div class="pc-cat">${esc(p.category)}</div><h3>${esc(p.title)}</h3>${p.description ? `<p class="muted">${esc(p.description)}</p>` : ''}</div>
-      </button>`).join('') : '<p class="muted">Geen producten gevonden. Probeer een ander woord of <a class="accent" href="mailto:info@sp-agency.be?subject=Productvraag">vraag het ons</a>.</p>';
-    $('#moreWrap').innerHTML = list.length > visible.length ? `<button type="button" class="btn outline" id="showMore">Toon meer (${list.length - visible.length})</button>` : '';
+    grid.innerHTML = visible.length ? visible.map(productCard).join('') : '<p class="muted">Geen producten gevonden. Probeer een ander woord of <a class="accent" href="mailto:info@sp-agency.be?subject=Productvraag">vraag het ons</a>.</p>';
+    more.innerHTML = list.length > visible.length ? `<button type="button" class="btn outline" id="showMore">Toon meer (${list.length - visible.length})</button>` : '';
   }
 
   // ---------- configurator ----------
@@ -204,6 +239,7 @@
       <div class="cart-row"><span>Btw 21%</span><span>${eur(t.vat)}</span></div>
       <div class="cart-row total"><span>Totaal</span><span>${eur(t.total)}</span></div>` : '';
     $('#toCheckout').disabled = !state.cart.length;
+    document.querySelector('.shop-layout')?.classList.toggle('no-cart', !state.cart.length);
     $('#payTotal').textContent = eur(t.total);
     if (!state.cart.length) $('#checkout').hidden = true;
   }
@@ -237,7 +273,7 @@
   document.addEventListener('click', (e) => {
     const t = e.target.closest('button,[data-cat]');
     if (!t) return;
-    if (t.dataset.cat) { state.cat = t.dataset.cat; state.shown = PAGE; renderCatalog(); }
+    if (t.dataset.cat) { state.cat = t.dataset.cat; state.q = ''; const si = $('#shopSearch'); if (si) si.value = ''; state.shown = PAGE; renderCatalog(); $('#shopTop').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     else if (t.id === 'showMore') { state.shown += PAGE * 2; renderCatalog(); }
     else if (t.dataset.code) selectProduct(t.dataset.code);
     else if (t.dataset.opt) { state.options.push({ code: t.dataset.opt }); reconfigure(); }
@@ -285,6 +321,7 @@
     try {
       const r = await api('/api/products');
       state.products = r.products || [];
+      state.categories = r.categories || [];
       if (r.settings) state.settings = r.settings;
       if (state.settings.payment === 'transfer') {
         $('#payInfo').textContent = 'Betalen via overschrijving. Je krijgt de betaalgegevens na je bestelling.';

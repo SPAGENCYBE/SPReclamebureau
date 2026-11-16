@@ -1,8 +1,8 @@
 // Volledige productcatalogus, rechtstreeks uit Probo, 24 uur bewaard in KV.
-import { FEATURED, HIDDEN, categorize } from './config.js';
+import { FEATURED, HIDDEN, CATEGORIES, categorize } from './config.js';
 import { listProducts } from './probo.js';
 
-const KEY = 'catalog:v1';
+const KEY = 'catalog:v2';
 const TTL = 60 * 60 * 24;
 let memo = null; // per Worker-instantie, vermijdt een KV-read per request
 
@@ -28,7 +28,8 @@ export async function buildCatalog(env) {
     if (!p.active || p.article_group_name !== 'Composed product' || HIDDEN.has(p.code)) continue;
     const t = (p.translations && (p.translations.nl || p.translations.en)) || {};
     const title = clean(t.title) || p.code;
-    const cat = categorize(p.code, title);
+    const catKey = categorize(p.code, title);
+    const cat = CATEGORIES.find((c) => c.key === catKey) || CATEGORIES[CATEGORIES.length - 1];
     const f = FEATURED[p.code];
     let description = clean(t.description);
     if (!description || description.toLowerCase() === title.toLowerCase()) description = '';
@@ -36,17 +37,20 @@ export async function buildCatalog(env) {
       code: p.code,
       title: f ? f.title : title,
       category: cat.name,
+      category_key: cat.key,
       description: f ? f.description : description,
-      image: cat.image,
       featured: !!f,
     });
   }
   items.sort((a, b) => {
     if (a.featured !== b.featured) return a.featured ? -1 : 1;
     if (a.featured) return featuredOrder.indexOf(a.code) - featuredOrder.indexOf(b.code);
-    return a.category.localeCompare(b.category, 'nl') || a.title.localeCompare(b.title, 'nl');
+    const ca = CATEGORIES.findIndex((c) => c.key === a.category_key);
+    const cb = CATEGORIES.findIndex((c) => c.key === b.category_key);
+    return ca - cb || a.title.localeCompare(b.title, 'nl');
   });
-  const catalog = { built_at: new Date().toISOString(), products: items };
+  const categories = CATEGORIES.map((c) => ({ ...c, count: items.filter((i) => i.category_key === c.key).length })).filter((c) => c.count);
+  const catalog = { built_at: new Date().toISOString(), categories, products: items };
   await env.ORDERS.put(KEY, JSON.stringify(catalog), { expirationTtl: TTL });
   memo = { at: Date.now(), catalog };
   return catalog;

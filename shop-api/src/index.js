@@ -440,7 +440,7 @@ export default {
     try {
       let res;
       if (p === '/api/health') res = json({ ok: true, probo: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test', payment: paymentMode(env) });
-      else if (p === '/api/products' && req.method === 'GET') res = json({ products: (await getCatalog(env)).products, settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
+      else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await getCatalog(env)), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
       else if (p.startsWith('/api/files/') && req.method === 'GET') return await handleFile(env, p.slice(11), url);
@@ -464,6 +464,17 @@ export default {
         }
       }
       else if (p === '/api/admin/refresh-catalog') res = isAdmin(env, url) ? json({ ok: true, count: (await buildCatalog(env)).products.length }) : json({ error: 'Geen toegang' }, 403);
+      else if (p === '/api/admin/probo-raw') {
+        if (!isAdmin(env, url)) res = json({ error: 'Geen toegang' }, 403);
+        else {
+          const path = url.searchParams.get('path') || '';
+          try {
+            res = path === 'configure'
+              ? json(await probo.rawConfigure(env, url.searchParams.get('code'), []))
+              : /^\/[a-z0-9/_.?=&-]+$/i.test(path) ? json(await probo.rawGet(env, path)) : json({ error: 'pad' }, 400);
+          } catch (e) { res = json({ error: e.message, status: e.status, body: e.body }); }
+        }
+      }
       else if (p === '/api/admin/orders') res = isAdmin(env, url) ? await handleAdminOrders(env) : json({ error: 'Geen toegang' }, 403);
       else res = json({ error: 'Niet gevonden' }, 404);
       for (const [k, v] of Object.entries(h)) res.headers.set(k, v);
