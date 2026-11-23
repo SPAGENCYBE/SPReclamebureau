@@ -315,3 +315,20 @@ img{max-width:100%}
 @keyframes p-feed{0%{transform:translateY(-120%)}45%,55%{transform:translateY(0)}100%{transform:translateY(120%)}}
 @keyframes p-spin{to{transform:rotate(360deg)}}
 @media(max-width:860px){.sec-head .side.mono{text-align:left}}
+
+/* realisaties (webdesign) */
+.sites{padding:100px 0 0}
+.site-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:32px}
+.site-card{border:var(--line);background:#fff;display:flex;flex-direction:column;transition:transform .3s,box-shadow .3s}
+.site-card:hover{transform:translate(-4px,-4px);box-shadow:10px 10px 0 var(--ink)}
+.site-shot{display:block;border-bottom:var(--line);background:#111;overflow:hidden}
+.site-bar{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;background:var(--paper);border-bottom:var(--line)}
+.site-bar i{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--ink)}
+.site-bar i:nth-child(1){background:var(--magenta)}.site-bar i:nth-child(2){background:var(--yellow)}.site-bar i:nth-child(3){background:var(--cyan)}
+.site-bar .mono{margin-left:10px;font-size:11px}
+.site-shot img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;object-position:top left;transition:transform .6s}
+.site-card:hover .site-shot img{transform:scale(1.03)}
+.site-body{padding:22px 24px 26px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.site-tag{font-size:11px;color:var(--orange-dark)}
+.site-body h3{margin:0!important;font-size:26px!important}
+.site-body p{margin:0 0 8px;font-size:16px}
