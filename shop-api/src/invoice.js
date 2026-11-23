@@ -14,10 +14,12 @@ export function invoiceHtml(order, envIn) {
   const title = isInvoice ? `Factuur ${order.invoice_no}` : `Bestelbevestiging ${order.id}`;
   const a = order.address;
   const c = order.customer;
+  const t = order.totals;
+  const ex = !!t.vat_exempt;
+  const vcol = ex ? '' : '<td class="r">21%</td>';
   const rows = order.lines.map((l) => `
     <tr><td><strong>${esc(l.title)}</strong><br><small>${esc(l.summary)}</small></td>
-    <td class="r">${esc(l.amount)}</td><td class="r">${eur(l.excl)}</td><td class="r">21%</td><td class="r">${eur(l.excl)}</td></tr>`).join('');
-  const t = order.totals;
+    <td class="r">${esc(l.amount)}</td><td class="r">${eur(l.excl)}</td>${vcol}<td class="r">${eur(l.excl)}</td></tr>`).join('');
   return `<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>${esc(title)} | SP Reclamebureau</title>
 <style>
@@ -47,16 +49,17 @@ td{border-bottom:1px solid #e5e7eb;padding:10px 6px;vertical-align:top}td small{
     <div><strong>Klant</strong><br>${esc(a.company ? a.company + '<br>' : '')}${esc(a.first_name)} ${esc(a.last_name)}<br>${esc(a.street)} ${esc(a.house_number)}${a.addition ? ' bus ' + esc(a.addition) : ''}<br>${esc(a.postal_code)} ${esc(a.city)}<br>${esc(a.country)}${c.vat_number ? `<br>BTW ${esc(c.vat_number)}` : ''}</div>
     <div><strong>Leveradres</strong><br>${esc(a.first_name)} ${esc(a.last_name)}<br>${esc(a.street)} ${esc(a.house_number)}${a.addition ? ' bus ' + esc(a.addition) : ''}<br>${esc(a.postal_code)} ${esc(a.city)}</div>
   </div>
-  <table><thead><tr><th>Omschrijving</th><th class="r">Aantal</th><th class="r">Prijs excl.</th><th class="r">Btw</th><th class="r">Totaal excl.</th></tr></thead>
+  <table><thead><tr><th>Omschrijving</th><th class="r">Aantal</th><th class="r">${ex ? 'Prijs' : 'Prijs excl.'}</th>${ex ? '' : '<th class="r">Btw</th>'}<th class="r">${ex ? 'Totaal' : 'Totaal excl.'}</th></tr></thead>
   <tbody>${rows}
-    <tr><td>Verzending</td><td class="r">1</td><td class="r">${eur(t.shipping_excl)}</td><td class="r">21%</td><td class="r">${eur(t.shipping_excl)}</td></tr>
+    <tr><td>Verzending</td><td class="r">1</td><td class="r">${eur(t.shipping_excl)}</td>${vcol}<td class="r">${eur(t.shipping_excl)}</td></tr>
   </tbody></table>
   <div class="tot">
-    <div><span>Totaal excl. btw</span><span>${eur(t.subtotal_excl + t.shipping_excl)}</span></div>
-    <div><span>Btw 21%</span><span>${eur(t.vat)}</span></div>
+    ${ex ? '' : `<div><span>Totaal excl. btw</span><span>${eur(t.subtotal_excl + t.shipping_excl)}</span></div>
+    <div><span>Btw 21%</span><span>${eur(t.vat)}</span></div>`}
     <div class="big"><span>Totaal</span><span>${eur(t.total_incl)}</span></div>
   </div>
   ${order.paid_at ? `<p style="font-size:14px;margin-top:18px">Betaald op ${date(order.paid_at)}.</p>` : `<p style="font-size:14px;margin-top:18px">Nog te betalen.</p>`}
+  ${ex ? '<p style="font-size:13px;margin-top:14px">Bijzondere vrijstellingsregeling kleine ondernemingen.</p>' : ''}
   ${isInvoice ? '' : '<div class="note">Dit is een <strong>bestelbevestiging</strong>, geen factuur. De factuur volgt na verwerking van je bestelling.</div>'}
   <div class="foot">${esc(env.SELLER_NAME || 'SP Reclamebureau')}${env.SELLER_LEGAL ? ' (' + esc(env.SELLER_LEGAL) + ')' : ''}${env.SELLER_VAT ? ' · BTW ' + esc(env.SELLER_VAT) : ''}${env.SELLER_IBAN ? ' · IBAN ' + esc(env.SELLER_IBAN) : ''} · spreclamebureau.be</div>
 </div>

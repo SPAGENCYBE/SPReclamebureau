@@ -189,7 +189,7 @@
     }
 
     if (r.can_order && r.price) {
-      html += `<div class="price-box"><div><div class="muted">Prijs voor ${esc(r.amount)} stuk(s)</div><div class="big">${eur(r.price.incl)}</div><div class="muted">${eur(r.price.excl)} excl. btw</div></div></div>
+      html += `<div class="price-box"><div><div class="muted">Prijs voor ${esc(r.amount)} stuk(s)</div><div class="big">${eur(r.price.incl)}</div><div class="muted">${state.settings.vat ? `${eur(r.price.excl)} excl. btw` : 'Btw-vrij: vrijstellingsregeling kleine ondernemingen'}</div></div></div>
         <div class="opt-group"><span class="opt-title">Drukbestand</span>
           <div id="checkBox">${checkHtml()}</div>
           <p class="muted" style="font-size:13px">Geen drukklaar bestand? <a class="accent" href="mailto:info@sp-agency.be?subject=Ontwerp%20voor%20webshopbestelling">Wij ontwerpen het voor je</a>.</p>
@@ -547,9 +547,11 @@
       ? state.cart.map((l, i) => `<li><strong>${esc(l.title)}</strong><span>${eur(l.incl)}</span><small>${esc(l.summary)}</small><button type="button" data-rm="${i}">verwijderen</button></li>`).join('')
       : '<li class="muted" style="border:0">Je winkelmand is nog leeg.</li>';
     $('#cartTotals').innerHTML = state.cart.length ? `
-      <div class="cart-row"><span>Subtotaal excl. btw</span><span>${eur(t.sub)}</span></div>
+      ${state.settings.vat ? `<div class="cart-row"><span>Subtotaal excl. btw</span><span>${eur(t.sub)}</span></div>
       <div class="cart-row"><span>Verzending excl. btw</span><span>${eur(t.ship)}</span></div>
-      <div class="cart-row"><span>Btw 21%</span><span>${eur(t.vat)}</span></div>
+      <div class="cart-row"><span>Btw 21%</span><span>${eur(t.vat)}</span></div>` : `<div class="cart-row"><span>Subtotaal</span><span>${eur(t.sub)}</span></div>
+      <div class="cart-row"><span>Verzending</span><span>${eur(t.ship)}</span></div>
+      <div class="cart-row" style="font-size:12px;color:var(--s-muted)"><span>Btw-vrij: vrijstellingsregeling kleine ondernemingen</span></div>`}
       <div class="cart-row total"><span>Totaal</span><span>${eur(t.total)}</span></div>` : '';
     $('#toCheckout').disabled = !state.cart.length;
     document.querySelector('.shop-layout')?.classList.toggle('no-cart', !state.cart.length);

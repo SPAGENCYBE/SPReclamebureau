@@ -14,7 +14,7 @@
 //   GET  /api/admin/orders?key=           laatste bestellingen (beheer)
 
 import { getCatalog, buildCatalog, findCatalogItem } from './catalog.js';
-import { pickPurchasePrice, salesPrice, orderTotals, round2 } from './pricing.js';
+import { pickPurchasePrice, salesPrice, orderTotals, round2, vatRate, isExempt } from './pricing.js';
 import * as probo from './probo.js';
 import * as mollie from './mollie.js';
 import { notifyPaid, notifyNewTransfer } from './mail.js';
@@ -634,7 +634,7 @@ export default {
     try {
       let res;
       if (p === '/api/health') res = json({ ok: true, probo: env.PROBO_ORDER_TYPE === 'production' ? 'production' : 'test', payment: paymentMode(env) });
-      else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await withThumbs(env, await getCatalog(env))), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: 0.21, payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
+      else if (p === '/api/products' && req.method === 'GET') res = json({ ...(await withThumbs(env, await getCatalog(env))), settings: { shipping_excl: Number(env.SHIPPING_EUR ?? 9.95), vat: vatRate(env), vat_exempt: isExempt(env), payment: paymentMode(env), max_upload_mb: maxUpload(env) / 1024 / 1024 } });
       else if (p === '/api/configure' && req.method === 'POST') res = await handleConfigure(req, env);
       else if (p === '/api/upload' && req.method === 'POST') res = await handleUpload(req, env);
       else if (p.startsWith('/api/auth/') || p.startsWith('/api/account')) res = await handleAccount(req, env, p);

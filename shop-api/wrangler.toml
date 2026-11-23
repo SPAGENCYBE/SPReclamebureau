@@ -14,7 +14,8 @@ BANK_NAME = "SP Reclamebureau"
 PROBO_CONTACT_EMAIL = "info@sp-agency.be"
 MARGIN_PERCENT = "40"            # jouw marge bovenop de Probo-inkoopprijs
 MIN_MARGIN_EUR = "7.5"           # minimale marge per product
-SHIPPING_EUR = "9.95"            # verzendkost excl. btw
+SHIPPING_EUR = "12.04"           # verzendkost voor de klant (zelfde bedrag als vroeger 9,95 + 21%)
+VAT_EXEMPT = "1"                # CS Group: bijzondere vrijstellingsregeling kleine ondernemingen (geen btw aanrekenen)
 OWNER_EMAIL = "info@sp-agency.be"
 MAIL_FROM = "SP Reclamebureau <shop@spreclamebureau.be>"
 # Gegevens op facturen. Zolang SELLER_VAT leeg is, maakt de webshop bestelbevestigingen i.p.v. facturen.

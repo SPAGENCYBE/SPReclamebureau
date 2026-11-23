@@ -2,6 +2,10 @@
 // Alle bedragen worden ALTIJD op de server berekend; de browser stuurt nooit een prijs door.
 
 const VAT = 0.21;
+// Vrijstellingsregeling kleine ondernemingen (VAT_EXEMPT="1"): geen btw aanrekenen,
+// maar de btw die Probo aanrekent is niet aftrekbaar en telt dus mee als kost.
+export const isExempt = (env) => String(env.VAT_EXEMPT || '') === '1';
+export const vatRate = (env) => (isExempt(env) ? 0 : VAT);
 
 function num(v) {
   const n = Number(v);
@@ -37,17 +41,19 @@ export function pickPurchasePrice(product) {
 export function salesPrice(purchaseExcl, env) {
   const marginPct = num(env.MARGIN_PERCENT ?? 40) / 100;
   const minMargin = num(env.MIN_MARGIN_EUR ?? 7.5);
-  const margin = Math.max(purchaseExcl * marginPct, minMargin);
-  const excl = round2(purchaseExcl + margin);
-  return { excl, incl: round2(excl * (1 + VAT)) };
+  const cost = isExempt(env) ? purchaseExcl * (1 + VAT) : purchaseExcl;
+  const margin = Math.max(cost * marginPct, minMargin);
+  const excl = round2(cost + margin);
+  return { excl, incl: round2(excl * (1 + vatRate(env))) };
 }
 
 export function orderTotals(lines, env) {
   const shippingExcl = round2(num(env.SHIPPING_EUR ?? 9.95));
   const subtotalExcl = round2(lines.reduce((s, l) => s + l.excl, 0));
   const totalExcl = round2(subtotalExcl + shippingExcl);
-  const vat = round2(totalExcl * VAT);
+  const vat = round2(totalExcl * vatRate(env));
   return {
+    vat_exempt: isExempt(env),
     subtotal_excl: subtotalExcl,
     shipping_excl: shippingExcl,
     vat,
