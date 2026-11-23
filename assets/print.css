@@ -116,7 +116,7 @@ img{max-width:100%}
 .field input,.field select,.field textarea{font-family:'Archivo',sans-serif!important;text-transform:none;letter-spacing:0;font-size:16px!important}
 .field small{text-transform:none}
 
-.cat-tiles{gap:0!important;border:var(--line);background:var(--ink);grid-template-columns:repeat(auto-fill,minmax(260px,1fr))!important}
+.cat-tiles{gap:0!important;border:0;background:none;padding:.75px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))!important}
 .cat-tile{border:0!important;border-radius:0!important;background:var(--white)!important;outline:.75px solid var(--ink);position:relative;overflow:hidden;padding:20px!important;min-height:104px}
 .cat-tile::before{content:"";position:absolute;inset:0;background:var(--orange);transform:scaleY(0);transform-origin:bottom;transition:transform .4s cubic-bezier(.7,0,.2,1)}
 .cat-tile>*{position:relative}
