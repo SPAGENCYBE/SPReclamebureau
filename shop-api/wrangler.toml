@@ -7,7 +7,7 @@ SITE_URL = "https://spreclamebureau.be"
 WORKER_URL = "https://sp-shop-api.spreclamebureau.workers.dev"
 ALLOWED_ORIGINS = "https://spreclamebureau.be,https://www.spreclamebureau.be,https://raw.githack.com"   # raw.githack = voorbeeldweergave van de branch
 PROBO_ORDER_TYPE = "test"        # pas op "production" zetten na een geslaagde testbestelling
-PAYMENT_MODE = "test"            # "test" (niets betalen, testorders), "transfer" (overschrijving) of "mollie"
+PAYMENT_MODE = "mollie"           # "test" (niets betalen, testorders), "transfer" (overschrijving) of "mollie"
 BANK_IBAN = ""                   # jouw rekeningnummer voor overschrijvingen
 BANK_BIC = ""
 BANK_NAME = "SP Reclamebureau"
